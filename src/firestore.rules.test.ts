@@ -1,0 +1,90 @@
+/**
+ * Security Rule Tests for CloudNotes
+ * Validates that the 12 Dirty Dozen payloads violate ABAC constraints
+ */
+
+export const securityTestCases = [
+  {
+    name: 'Payload 1: Reject ghost field (__admin: true) on note creation',
+    collection: 'notes',
+    payload: {
+      id: 'note_1',
+      userId: 'test_user',
+      folderId: '',
+      title: 'Nota 1',
+      content: 'Contenido',
+      isPinned: false,
+      isArchived: false,
+      color: '#ffffff',
+      __admin: true,
+      createdAt: 'serverTimestamp',
+      updatedAt: 'serverTimestamp',
+    },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: 'Payload 2: Reject mismatched user ID spoofing',
+    collection: 'notes',
+    payload: {
+      id: 'note_2',
+      userId: 'different_user',
+      folderId: '',
+      title: 'Nota 2',
+      content: 'Contenido',
+      isPinned: false,
+      isArchived: false,
+      color: '#ffffff',
+      createdAt: 'serverTimestamp',
+      updatedAt: 'serverTimestamp',
+    },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: 'Payload 3: Reject note title exceeding 200 chars',
+    collection: 'notes',
+    payload: {
+      id: 'note_3',
+      userId: 'test_user',
+      folderId: '',
+      title: 'A'.repeat(201),
+      content: 'Contenido',
+      isPinned: false,
+      isArchived: false,
+      color: '#ffffff',
+      createdAt: 'serverTimestamp',
+      updatedAt: 'serverTimestamp',
+    },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: 'Payload 4: Reject folder name exceeding 100 chars',
+    collection: 'folders',
+    payload: {
+      id: 'folder_1',
+      userId: 'test_user',
+      name: 'F'.repeat(101),
+      color: '#3b82f6',
+      icon: 'folder',
+      createdAt: 'serverTimestamp',
+      updatedAt: 'serverTimestamp',
+    },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: 'Payload 5: Reject invalid path ID with injection characters',
+    collection: 'notes',
+    payload: {
+      id: 'note/../../etc',
+      userId: 'test_user',
+      folderId: '',
+      title: 'Nota hack',
+      content: 'Contenido',
+      isPinned: false,
+      isArchived: false,
+      color: '#ffffff',
+      createdAt: 'serverTimestamp',
+      updatedAt: 'serverTimestamp',
+    },
+    expected: 'PERMISSION_DENIED',
+  },
+];

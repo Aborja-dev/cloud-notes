@@ -1,0 +1,6 @@
+{
+  "name": "CloudNotes - Notas y Carpetas en la Nube",
+  "description": "Aplicación para escribir notas, organizar en carpetas y sincronizar en tiempo real en la nube entre todos tus dispositivos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidFolder(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'color', 'icon', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userId', 'name', 'color', 'icon', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.userId is string && data.userId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.color is string && data.color.size() <= 30
+        && data.icon is string && data.icon.size() <= 30
+        && (data.createdAt == request.time || data.createdAt is timestamp)
+        && (data.updatedAt == request.time || data.updatedAt is timestamp);
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['id', 'userId', 'folderId', 'title', 'content', 'isPinned', 'isArchived', 'color', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userId', 'folderId', 'title', 'content', 'isPinned', 'isArchived', 'color', 'tags', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.userId is string && data.userId == request.auth.uid
+        && data.folderId is string && data.folderId.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.content is string && data.content.size() <= 50000
+        && data.isPinned is bool
+        && data.isArchived is bool
+        && data.color is string && data.color.size() <= 30
+        && (!('tags' in data) || (data.tags is list && data.tags.size() <= 20))
+        && (data.createdAt == request.time || data.createdAt is timestamp)
+        && (data.updatedAt == request.time || data.updatedAt is timestamp);
+    }
+
+    match /folders/{folderId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(folderId)
+        && incoming().id == folderId
+        && isValidFolder(incoming());
+      allow update: if isSignedIn()
+        && isValidId(folderId)
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && isValidFolder(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'color', 'icon', 'updatedAt']);
+      allow delete: if isSignedIn()
+        && isValidId(folderId)
+        && existing().userId == request.auth.uid;
+    }
+
+    match /notes/{noteId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(noteId)
+        && incoming().id == noteId
+        && isValidNote(incoming());
+      allow update: if isSignedIn()
+        && isValidId(noteId)
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && isValidNote(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['folderId', 'title', 'content', 'isPinned', 'isArchived', 'color', 'tags', 'updatedAt']);
+      allow delete: if isSignedIn()
+        && isValidId(noteId)
+        && existing().userId == request.auth.uid;
+    }
+  }
+}

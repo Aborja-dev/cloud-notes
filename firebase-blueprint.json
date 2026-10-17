@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "Folder": {
+      "title": "Folder",
+      "description": "Carpeta organizada por el usuario para agrupar notas",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID único de la carpeta",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID del propietario de la carpeta",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Nombre de la carpeta",
+          "maxLength": 100
+        },
+        "color": {
+          "type": "string",
+          "description": "Color o etiqueta temática de la carpeta",
+          "maxLength": 30
+        },
+        "icon": {
+          "type": "string",
+          "description": "Identificador del icono de la carpeta",
+          "maxLength": 30
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de creación"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de última actualización"
+        }
+      },
+      "required": ["id", "userId", "name", "createdAt", "updatedAt"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Nota de texto enriquecido o markdown con soporte de carpetas, fijado y colores",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID único de la nota",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID del usuario propietario",
+          "maxLength": 128
+        },
+        "folderId": {
+          "type": "string",
+          "description": "ID de la carpeta a la que pertenece o cadena vacía si está en la raíz",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Título de la nota",
+          "maxLength": 200
+        },
+        "content": {
+          "type": "string",
+          "description": "Contenido de texto de la nota",
+          "maxLength": 50000
+        },
+        "isPinned": {
+          "type": "boolean",
+          "description": "Si la nota está fijada en la parte superior"
+        },
+        "isArchived": {
+          "type": "boolean",
+          "description": "Si la nota está archivada o en papelera"
+        },
+        "color": {
+          "type": "string",
+          "description": "Color de fondo o acento de la tarjeta",
+          "maxLength": 30
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de creación"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de última actualización"
+        }
+      },
+      "required": ["id", "userId", "title", "content", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/folders/{folderId}": {
+      "schema": {
+        "$ref": "#/entities/Folder"
+      },
+      "description": "Colección de carpetas de notas de cada usuario"
+    },
+    "/notes/{noteId}": {
+      "schema": {
+        "$ref": "#/entities/Note"
+      },
+      "description": "Colección de notas creadas por los usuarios y sincronizadas en la nube"
+    }
+  }
+}
