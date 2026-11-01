@@ -23,7 +23,6 @@ import { useNotes } from '../context/NotesContext';
 import { useAuth } from '../../auth/auth';
 import { FOLDER_ICONS, FolderModal } from './FolderModal';
 import { SyncDevicesModal } from './SyncDevicesModal';
-import { PWAInstallButton } from './PWAInstallButton';
 import type { Folder } from '../types';
 
 interface SidebarProps {
@@ -169,11 +168,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen 
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </button>
-        </div>
-
-        {/* PWA Install Button */}
-        <div className="px-4 pb-1">
-          <PWAInstallButton variant="sidebar" />
         </div>
 
         {/* Action: New Note Button */}

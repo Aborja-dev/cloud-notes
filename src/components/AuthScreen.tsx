@@ -9,11 +9,9 @@ import {
   Sparkles, 
   ShieldCheck, 
   ArrowRight,
-  Zap,
-  Download
+  Zap
 } from 'lucide-react';
 import { useNotes } from '../context/NotesContext';
-import { PWAInstallButton } from './PWAInstallButton';
 
 export const AuthScreen: React.FC = () => {
   const { loginWithGoogle, authLoading } = useNotes();
@@ -110,10 +108,6 @@ export const AuthScreen: React.FC = () => {
             <span>Continuar con Google</span>
             <ArrowRight className="w-4 h-4 text-slate-500" />
           </button>
-
-          <div className="mt-4 flex justify-center">
-            <PWAInstallButton variant="banner" />
-          </div>
 
           <div className="flex items-center justify-center gap-1.5 mt-4 text-[11px] text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />

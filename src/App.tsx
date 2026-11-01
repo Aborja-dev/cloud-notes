@@ -6,11 +6,12 @@ import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
 import { AuthScreen } from './components/AuthScreen';
 import { Cloud, Loader2 } from 'lucide-react';
-
+import { useStorage } from './datos/storage';
+import foldersData from './datos/folders.json';
 const Workspace: React.FC = () => {
-  const { user, authLoading, createNote, mobileView } = useNotes();
+  const { user, authLoading, createNote, mobileView, folders } = useNotes();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
+  const { folders: storedFolders, setFolders } = useStorage();
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -50,7 +51,7 @@ const Workspace: React.FC = () => {
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
       />
-
+      <pre>{JSON.stringify(storedFolders, null, 2)}</pre>
       {/* Note List column: on mobile, show if mobileView === 'list', hide if mobileView === 'editor' */}
       <div className={`h-full ${mobileView === 'editor' ? 'hidden md:flex' : 'flex w-full md:w-80 lg:w-96'} shrink-0`}>
         <NoteList
@@ -62,6 +63,12 @@ const Workspace: React.FC = () => {
       <main className={`flex-1 flex flex-col h-full overflow-hidden ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
         <NoteEditor />
       </main>
+      <button className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors fixed bottom-4 right-4" onClick={() => {
+        setFolders(foldersData.folders);
+        console.log(storedFolders);
+        }}>
+        Ver estado
+      </button>
     </div>
   );
 };

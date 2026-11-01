@@ -1,18 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, useTransition } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  doc, 
-  setDoc, 
-  updateDoc, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  setDoc,
+  updateDoc,
   deleteDoc,
-  serverTimestamp 
+  serverTimestamp
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, googleProvider, signInWithPopup, signOut, handleFirestoreError, OperationType } from '../firebase';
 import type { Note, Folder, ViewFilter, UserProfile } from '../types';
+import { folderRepository, useStorage } from '../datos/storage';
 
 export type SyncState = 'synced' | 'saving' | 'offline' | 'error';
 
@@ -47,7 +48,7 @@ interface NotesContextType {
 
 const NotesContext = createContext<NotesContextType | null>(null);
 
-function generateId(): string {
+export function generateId(): string {
   return 'id_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 }
 
@@ -55,7 +56,7 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const { folders, setFolders, createFolder: create } = useStorage();
   const [activeFilter, setActiveFilter] = useState<ViewFilter>('all');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +65,7 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   const [, startTransition] = useTransition();
+
 
   // Listen to network status
   useEffect(() => {
@@ -111,29 +113,17 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) {
       return;
     }
+    const unsubscribeFolders = folderRepository.subscribe(user.uid, (folderList) => {
+      startTransition(() => {
+        setFolders(folderList);
+        setLastSyncTime(new Date());
+        setSyncState('synced');
+      });
+    }, (error: Error) => {
+      setSyncState('error');
+      handleFirestoreError(error, OperationType.LIST, 'folders');
+    });
 
-    const foldersPath = 'folders';
-    const foldersQuery = query(collection(db, foldersPath), where('userId', '==', user.uid));
-    
-    const unsubscribeFolders = onSnapshot(
-      foldersQuery,
-      (snapshot) => {
-        const folderList: Folder[] = [];
-        snapshot.forEach((docSnap) => {
-          folderList.push(docSnap.data() as Folder);
-        });
-        folderList.sort((a, b) => a.name.localeCompare(b.name));
-        startTransition(() => {
-          setFolders(folderList);
-          setLastSyncTime(new Date());
-          setSyncState('synced');
-        });
-      },
-      (error) => {
-        setSyncState('error');
-        handleFirestoreError(error, OperationType.LIST, foldersPath);
-      }
-    );
 
     const notesPath = 'notes';
     const notesQuery = query(collection(db, notesPath), where('userId', '==', user.uid));
@@ -179,7 +169,7 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       unsubscribeFolders();
       unsubscribeNotes();
     };
-  }, [user]);
+  }, [user, setFolders, startTransition]);
 
   const loginWithGoogle = async () => {
     try {
@@ -201,11 +191,11 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return null;
     setSyncState('saving');
     const newId = generateId();
-    const effectiveFolderId = folderId !== undefined 
-      ? folderId 
-      : (activeFilter !== 'all' && activeFilter !== 'unorganized' && activeFilter !== 'pinned' && activeFilter !== 'trash' 
-          ? activeFilter 
-          : '');
+    const effectiveFolderId = folderId !== undefined
+      ? folderId
+      : (activeFilter !== 'all' && activeFilter !== 'unorganized' && activeFilter !== 'pinned' && activeFilter !== 'trash'
+        ? activeFilter
+        : '');
 
     const newNote: Note = {
       id: newId,
@@ -304,20 +294,13 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const createFolder = async (name: string, color = '#3b82f6', icon = 'folder'): Promise<string | null> => {
     if (!user) return null;
     setSyncState('saving');
-    const newId = generateId();
-    const newFolder: Folder = {
-      id: newId,
-      userId: user.uid,
+    const newFolder = {
       name: name.trim() || 'Nueva Carpeta',
       color,
       icon,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     };
-
-    const path = `folders/${newId}`;
     try {
-      await setDoc(doc(db, 'folders', newId), newFolder);
+      const newId = await create(newFolder, user);
       setActiveFilter(newId);
       setSyncState('synced');
       setLastSyncTime(new Date());
@@ -331,6 +314,7 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateFolder = async (id: string, name: string, color: string, icon: string): Promise<void> => {
     if (!user) return;
+
     setSyncState('saving');
     const path = `folders/${id}`;
     try {

@@ -10,11 +10,9 @@ import {
   X, 
   RefreshCw, 
   ExternalLink,
-  ShieldCheck,
-  Download
+  ShieldCheck
 } from 'lucide-react';
 import { useNotes } from '../context/NotesContext';
-import { PWAInstallButton } from './PWAInstallButton';
 
 interface SyncDevicesModalProps {
   isOpen: boolean;
@@ -145,9 +143,6 @@ export const SyncDevicesModal: React.FC<SyncDevicesModalProps> = ({ isOpen, onCl
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <div>
-              <PWAInstallButton variant="banner" />
-            </div>
             <button
               type="button"
               onClick={onClose}
