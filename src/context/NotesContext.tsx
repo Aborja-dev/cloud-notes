@@ -14,8 +14,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, googleProvider, signInWithPopup, signOut, handleFirestoreError, OperationType } from '../firebase';
 import type { Note, Folder, ViewFilter, UserProfile } from '../types';
 import { folderRepository, useStorage } from '../datos/storage';
-
-export type SyncState = 'synced' | 'saving' | 'offline' | 'error';
+import type { SyncState } from '../state/uiState';
 
 interface NotesContextType {
   user: UserProfile | null;
@@ -56,7 +55,13 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [notes, setNotes] = useState<Note[]>([]);
-  const { folders, setFolders, createFolder: create } = useStorage();
+  const {
+    folders,
+    setFolders,
+    createFolder: create,
+    updateFolder: updateStoredFolder,
+    deleteFolder: deleteStoredFolder,
+  } = useStorage();
   const [activeFilter, setActiveFilter] = useState<ViewFilter>('all');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -294,18 +299,20 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const createFolder = async (name: string, color = '#3b82f6', icon = 'folder'): Promise<string | null> => {
     if (!user) return null;
     setSyncState('saving');
+    const newId = generateId();
     const newFolder = {
       name: name.trim() || 'Nueva Carpeta',
       color,
       icon,
     };
     try {
-      const newId = await create(newFolder, user);
-      setActiveFilter(newId);
+      const newFolderId = await create(newFolder, user, newId);
+      setActiveFilter(newFolderId);
       setSyncState('synced');
       setLastSyncTime(new Date());
-      return newId;
+      return newFolderId;
     } catch (err) {
+      const path = `folders/${newId}`;
       setSyncState('error');
       handleFirestoreError(err, OperationType.CREATE, path);
       return null;
@@ -314,16 +321,10 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateFolder = async (id: string, name: string, color: string, icon: string): Promise<void> => {
     if (!user) return;
-
     setSyncState('saving');
     const path = `folders/${id}`;
     try {
-      await updateDoc(doc(db, 'folders', id), {
-        name: name.trim(),
-        color,
-        icon,
-        updatedAt: serverTimestamp(),
-      });
+      await updateStoredFolder(id, name, color, icon);
       setSyncState('synced');
       setLastSyncTime(new Date());
     } catch (err) {
@@ -350,7 +351,7 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const path = `folders/${id}`;
     try {
-      await deleteDoc(doc(db, 'folders', id));
+      await deleteStoredFolder(id);
       if (activeFilter === id) {
         setActiveFilter('all');
       }

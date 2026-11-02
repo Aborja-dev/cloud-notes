@@ -1,8 +1,7 @@
 import { create } from "zustand";
 import type { Folder, UserProfile } from "../types";
-import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
-import { generateId } from "../context/NotesContext";
 
 class FolderClass {
     subscribe = (
@@ -30,17 +29,20 @@ export const folderRepository = new FolderClass();
 interface StorageState {
     folders: Folder[];
     setFolders: (folders: Folder[]) => void;
-    createFolder: (folder:{ name: string, color: string, icon: string }, user: UserProfile) => Promise<string>;
-    updateFolder: (updatedFolder: Folder) => void;
-    deleteFolder: (folderId: string) => void;
+    createFolder: (folder:{ name: string, color: string, icon: string }, user: UserProfile, newId: string) => Promise<string>;
+    updateFolder: (id: string, name: string, color: string, icon: string) => Promise<void>;
+    deleteFolder: (folderId: string) => Promise<void>;
 }
 
 export const useStorage = create<StorageState>()((set) => ({
     folders: [],
     setFolders: (folders) => set({ folders }),
-    createFolder: async (folder: { name: string, color: string, icon: string }, user: UserProfile): Promise<string> => {
+    createFolder: async (
+        folder: { name: string, color: string, icon: string },
+        user: UserProfile,
+        newId: string
+    ): Promise<string> => {
         const { name, color, icon } = folder;
-        const newId = generateId();
         const newFolder: Folder = {
             id: newId,
             userId: user.uid,
@@ -51,13 +53,31 @@ export const useStorage = create<StorageState>()((set) => ({
             updatedAt: serverTimestamp(),
         };
         await setDoc(doc(db, 'folders', newId), newFolder);
+        set((state) => ({
+            folders: [...state.folders, newFolder]
+        }));
         return newId;
-
     },
-    updateFolder: (updatedFolder: Folder) => set((state) => ({
-        folders: state.folders.map((folder: Folder) => folder.id === updatedFolder.id ? updatedFolder : folder)
-    })),
-    deleteFolder: (folderId: string) => set((state) => ({
-        folders: state.folders.filter((folder: Folder) => folder.id !== folderId)
-    }))
+    updateFolder: async (id: string, name: string, color: string, icon: string): Promise<void> => {
+        const updatedAt = serverTimestamp();
+        await updateDoc(doc(db, 'folders', id), {
+            name: name.trim(),
+            color,
+            icon,
+            updatedAt,
+        });
+        set((state) => ({
+            folders: state.folders.map((folder) =>
+                folder.id === id
+                    ? { ...folder, name: name.trim(), color, icon, updatedAt }
+                    : folder
+            ),
+        }));
+    },
+    deleteFolder: async (folderId: string): Promise<void> => {
+        await deleteDoc(doc(db, 'folders', folderId));
+        set((state) => ({
+            folders: state.folders.filter((folder) => folder.id !== folderId),
+        }));
+    },
 }))
