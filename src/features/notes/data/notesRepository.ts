@@ -11,11 +11,12 @@ import {
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import type { Note, UserProfile } from "../../../types";
+import type { Repository } from "../../shared/data/Repository";
 
-type NoteInput = Pick<Note, "folderId" | "title" | "content" | "isPinned" | "isArchived" | "color"> & {
+export type NoteInput = Pick<Note, "folderId" | "title" | "content" | "isPinned" | "isArchived" | "color"> & {
     tags?: string[];
 };
-type NoteUpdates = Partial<Omit<Note, "id" | "userId" | "createdAt" | "updatedAt">>;
+export type NoteUpdates = Partial<Omit<Note, "id" | "userId" | "createdAt" | "updatedAt">>;
 
 export const notesRepository = {
     subscribe(
@@ -74,4 +75,4 @@ export const notesRepository = {
     async delete(id: string): Promise<void> {
         await deleteDoc(doc(db, "notes", id));
     },
-};
+} satisfies Repository<Note, NoteInput, NoteUpdates>;

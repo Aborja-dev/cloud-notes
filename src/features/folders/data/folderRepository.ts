@@ -11,8 +11,9 @@ import {
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import type { Folder, UserProfile } from "../../../types";
+import type { Repository } from "../../shared/data/Repository";
 
-interface FolderInput {
+export interface FolderInput {
     name: string;
     color: string;
     icon: string;
@@ -64,4 +65,4 @@ export const folderRepository = {
     async delete(id: string): Promise<void> {
         await deleteDoc(doc(db, "folders", id));
     },
-};
+} satisfies Repository<Folder, FolderInput, FolderInput>;

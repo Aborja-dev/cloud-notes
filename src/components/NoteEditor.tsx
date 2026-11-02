@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { 
   Pin, 
   Trash2, 
@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useNotes } from '../context/NotesContext';
 import { FOLDER_ICONS } from './FolderModal';
+import { useEditor } from '../features/editor/datos';
 
 const NOTE_COLORS = [
   { name: 'Blanco', value: '#ffffff' },
@@ -57,221 +58,22 @@ export const NoteEditor: React.FC = () => {
   } = useNotes();
   const activeNote = notes.find((n) => n.id === state.selectedNoteId);
 
-  const [title, setTitle] = useState('');
-  const [copied, setCopied] = useState(false);
   const [showFolderMenu, setShowFolderMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
-
-  // Active formatting state for toolbar button highlights
-  const [activeFormats, setActiveFormats] = useState({
-    bold: false,
-    italic: false,
-    underline: false,
-    strike: false,
-    bulletList: false,
-    orderedList: false,
-    alignLeft: true,
-    alignCenter: false,
-    alignRight: false,
-    alignJustify: false,
-    currentBlock: 'p',
-  });
-
-  const [stats, setStats] = useState({ words: 0, chars: 0, readTime: 1 });
-  const editorRef = useRef<HTMLDivElement>(null);
-  const isUpdatingFromProp = useRef(false);
-
-  // Helper to extract clean plain text from HTML
-  const extractText = (html: string) => {
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    return temp.textContent || temp.innerText || '';
-  };
-
-  const updateStats = useCallback((html: string) => {
-    const text = extractText(html).trim();
-    const words = text ? text.split(/\s+/).length : 0;
-    const chars = text.length;
-    const readTime = Math.max(1, Math.ceil(words / 200));
-    setStats({ words, chars, readTime });
-  }, []);
-
-  // Update active formatting states from current selection
-  const updateActiveFormats = useCallback(() => {
-    if (!editorRef.current) return;
-
-    try {
-      const bold = document.queryCommandState('bold');
-      const italic = document.queryCommandState('italic');
-      const underline = document.queryCommandState('underline');
-      const strike = document.queryCommandState('strikeThrough');
-      const bulletList = document.queryCommandState('insertUnorderedList');
-      const orderedList = document.queryCommandState('insertOrderedList');
-      const alignCenter = document.queryCommandState('justifyCenter');
-      const alignRight = document.queryCommandState('justifyRight');
-      const alignJustify = document.queryCommandState('justifyFull');
-      const alignLeft = !alignCenter && !alignRight && !alignJustify;
-
-      // Determine current block format
-      let block = 'p';
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        let node: Node | null = selection.getRangeAt(0).commonAncestorContainer;
-        if (node.nodeType === Node.TEXT_NODE) {
-          node = node.parentNode;
-        }
-        while (node && node !== editorRef.current) {
-          const tag = (node as HTMLElement).tagName?.toLowerCase();
-          if (['h1', 'h2', 'h3', 'blockquote', 'p'].includes(tag)) {
-            block = tag;
-            break;
-          }
-          node = node.parentNode;
-        }
-      }
-
-      setActiveFormats({
-        bold,
-        italic,
-        underline,
-        strike,
-        bulletList,
-        orderedList,
-        alignLeft,
-        alignCenter,
-        alignRight,
-        alignJustify,
-        currentBlock: block,
-      });
-    } catch {
-      // Ignore queryCommand errors if selection is outside
-    }
-  }, []);
-
-  // Populate editor when active note changes
-  useEffect(() => {
-    if (activeNote) {
-      setTitle(activeNote.title || '');
-      if (editorRef.current) {
-        isUpdatingFromProp.current = true;
-        const initialHtml = activeNote.content || '';
-        
-        // Handle legacy plain text notes by wrapping in paragraph if not HTML
-        if (initialHtml && !initialHtml.includes('<') && initialHtml.includes('\n')) {
-          editorRef.current.innerHTML = initialHtml
-            .split('\n')
-            .map((line) => `<p>${line || '<br>'}</p>`)
-            .join('');
-        } else {
-          editorRef.current.innerHTML = initialHtml;
-        }
-
-        updateStats(editorRef.current.innerHTML);
-        isUpdatingFromProp.current = false;
-      }
-    } else {
-      setTitle('');
-      if (editorRef.current) {
-        editorRef.current.innerHTML = '';
-      }
-      setStats({ words: 0, chars: 0, readTime: 1 });
-    }
-    updateActiveFormats();
-  }, [activeNote?.id, updateActiveFormats, updateStats]);
-
-  // Debounced auto-save function
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const triggerSave = useCallback(
-    (newTitle: string, newContent: string) => {
-      if (!activeNote) return;
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      saveTimeoutRef.current = setTimeout(() => {
-        updateNote(activeNote.id, {
-          title: newTitle || 'Sin título',
-          content: newContent,
-        });
-      }, 400);
-    },
-    [activeNote, updateNote]
-  );
-
-  // Handle content changes inside editor
-  const handleContentInput = () => {
-    if (!editorRef.current || isUpdatingFromProp.current) return;
-    const currentHtml = editorRef.current.innerHTML;
-    updateStats(currentHtml);
-    triggerSave(title, currentHtml);
-  };
-
-  // Handle title changes
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTitle = e.target.value;
-    setTitle(newTitle);
-    const currentHtml = editorRef.current ? editorRef.current.innerHTML : '';
-    triggerSave(newTitle, currentHtml);
-  };
-
-  // Execute formatting command with immediate auto-save and focus retention
-  const executeFormat = (command: string, value: string | undefined = undefined) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(command, false, value);
-    updateActiveFormats();
-    handleContentInput();
-  };
-
-  // Copy to clipboard (copies plain text + HTML)
-  const handleCopy = () => {
-    if (!editorRef.current) return;
-    const text = extractText(editorRef.current.innerHTML);
-    navigator.clipboard.writeText(`${title}\n\n${text}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Export note to file
-  const handleExport = (type: 'html' | 'txt') => {
-    if (!editorRef.current) return;
-    let blob: Blob;
-    let ext: string;
-
-    if (type === 'html') {
-      const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>${title || 'Nota'}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1e293b; }
-    h1 { border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
-    blockquote { border-left: 4px solid #3b82f6; margin: 16px 0; padding-left: 16px; color: #64748b; font-style: italic; }
-  </style>
-</head>
-<body>
-  <h1>${title || 'Sin título'}</h1>
-  ${editorRef.current.innerHTML}
-</body>
-</html>`;
-      blob = new Blob([fullHtml], { type: 'text/html' });
-      ext = 'html';
-    } else {
-      const text = `${title}\n\n${extractText(editorRef.current.innerHTML)}`;
-      blob = new Blob([text], { type: 'text/plain' });
-      ext = 'txt';
-    }
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(title || 'nota').replace(/[/\\?%*:|"<>]/g, '-')}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const {
+    title,
+    copied,
+    activeFormats,
+    stats,
+    editorRef,
+    updateActiveFormats,
+    handleContentInput,
+    handleTitleChange,
+    executeFormat,
+    handleCopy,
+    handleExport,
+  } = useEditor(activeNote, updateNote);
 
   if (!activeNote) {
     return (
