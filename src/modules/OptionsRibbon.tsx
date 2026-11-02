@@ -1,5 +1,8 @@
 
+import { useNotes } from '../context/NotesContext';
+
 export const OptionsRibbon = ({ activeNote, folders, currentFolder }: any) => {
+    const { setMobileView, state } = useNotes();
     return (
         <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -143,12 +146,12 @@ export const OptionsRibbon = ({ activeNote, folders, currentFolder }: any) => {
             <div className="flex items-center gap-2">
                 {/* Cloud Sync indicator pill */}
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    {syncState === 'saving' ? (
+                    {state.syncState === 'saving' ? (
                         <>
                             <RefreshCw className="w-3 h-3 text-amber-500 animate-spin" />
                             <span className="text-amber-600 dark:text-amber-400">Guardando en la nube...</span>
                         </>
-                    ) : isOnline ? (
+                    ) : state.isOnline ? (
                         <>
                             <span className="w-2 h-2 rounded-full bg-emerald-500" />
                             <span className="text-emerald-600 dark:text-emerald-400">Guardado en la nube</span>
@@ -186,4 +189,3 @@ export const OptionsRibbon = ({ activeNote, folders, currentFolder }: any) => {
         </div>
     );
 };
-

@@ -24,10 +24,8 @@ type SortOption = 'updated' | 'title' | 'created';
 export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
   const {
     notes,
+    state,
     folders,
-    activeFilter,
-    selectedNoteId,
-    searchQuery,
     setSelectedNoteId,
     setSearchQuery,
     createNote,
@@ -36,20 +34,19 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
     togglePinNote,
     setMobileView,
   } = useNotes();
-
   const [sortBy, setSortBy] = useState<SortOption>('updated');
 
   // Filter notes based on activeFilter
   let filteredNotes = notes.filter((note) => {
-    if (activeFilter === 'trash') {
+    if (state.activeFilter === 'trash') {
       return note.isArchived;
     }
     if (note.isArchived) return false;
 
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'pinned') return note.isPinned;
-    if (activeFilter === 'unorganized') return !note.folderId;
-    return note.folderId === activeFilter;
+    if (state.activeFilter === 'all') return true;
+    if (state.activeFilter === 'pinned') return note.isPinned;
+    if (state.activeFilter === 'unorganized') return !note.folderId;
+    return note.folderId === state.activeFilter;
   });
 
   // Helpers
@@ -69,8 +66,8 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
   };
 
   // Search filter
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase();
+  if (state.searchQuery.trim()) {
+    const q = state.searchQuery.toLowerCase();
     filteredNotes = filteredNotes.filter((n) => {
       const cleanContent = stripHtml(n.content).toLowerCase();
       return n.title.toLowerCase().includes(q) || cleanContent.includes(q);
@@ -80,7 +77,7 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
   // Sort notes
   filteredNotes.sort((a, b) => {
     // In normal views, pinned notes are always on top
-    if (activeFilter !== 'trash') {
+    if (state.activeFilter !== 'trash') {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
     }
 
@@ -145,11 +142,11 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
 
   // Filter Title info
   const getCurrentHeader = () => {
-    if (activeFilter === 'all') return { title: 'Todas las notas', icon: FileText, color: '#3b82f6' };
-    if (activeFilter === 'pinned') return { title: 'Notas fijadas', icon: Pin, color: '#f59e0b' };
-    if (activeFilter === 'unorganized') return { title: 'Sin carpeta', icon: FileText, color: '#94a3b8' };
-    if (activeFilter === 'trash') return { title: 'Papelera', icon: Trash2, color: '#ef4444' };
-    const folder = folders.find((f) => f.id === activeFilter);
+    if (state.activeFilter === 'all') return { title: 'Todas las notas', icon: FileText, color: '#3b82f6' };
+    if (state.activeFilter === 'pinned') return { title: 'Notas fijadas', icon: Pin, color: '#f59e0b' };
+    if (state.activeFilter === 'unorganized') return { title: 'Sin carpeta', icon: FileText, color: '#94a3b8' };
+    if (state.activeFilter === 'trash') return { title: 'Papelera', icon: Trash2, color: '#ef4444' };
+    const folder = folders.find((f) => f.id === state.activeFilter);
     if (folder) {
       const Icon = FOLDER_ICONS[folder.icon] || FolderIcon;
       return { title: folder.name, icon: Icon, color: folder.color };
@@ -185,11 +182,10 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
             </span>
           </div>
 
-          {activeFilter !== 'trash' && (
+          {state.activeFilter !== 'trash' && (
             <button
               onClick={async () => {
                 await createNote();
-                setMobileView('editor');
               }}
               className="p-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 shadow-xs transition"
               title="Nueva nota"
@@ -205,11 +201,11 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
           <input
             type="text"
             placeholder="Buscar notas..."
-            value={searchQuery}
+            value={state.searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
           />
-          {searchQuery && (
+          {state.searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
               className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
@@ -265,20 +261,19 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-slate-400">
             <HeaderIcon className="w-10 h-10 mb-2 stroke-[1.5] text-slate-300 dark:text-slate-600" />
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-              {searchQuery ? 'No hay notas que coincidan' : 'No hay notas aquí'}
+              {state.searchQuery ? 'No hay notas que coincidan' : 'No hay notas aquí'}
             </p>
             <p className="text-xs text-slate-400 mt-1 max-w-[200px]">
-              {searchQuery 
+              {state.searchQuery
                 ? 'Prueba con otra palabra clave.' 
-                : activeFilter === 'trash'
+                : state.activeFilter === 'trash'
                 ? 'La papelera está vacía.'
                 : 'Crea una nueva nota para empezar a escribir.'}
             </p>
-            {activeFilter !== 'trash' && !searchQuery && (
+            {state.activeFilter !== 'trash' && !state.searchQuery && (
               <button
                 onClick={async () => {
                   await createNote();
-                  setMobileView('editor');
                 }}
                 className="mt-4 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition inline-flex items-center gap-1.5"
               >
@@ -288,7 +283,7 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
           </div>
         ) : (
           filteredNotes.map((note) => {
-            const isSelected = selectedNoteId === note.id;
+            const isSelected = state.selectedNoteId === note.id;
             const folderName = getFolderName(note.folderId);
             const folderColor = getFolderColor(note.folderId);
 
@@ -319,7 +314,7 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
 
                   <div className="flex items-center gap-1 shrink-0">
                     {/* Pin button */}
-                    {activeFilter !== 'trash' && (
+                    {state.activeFilter !== 'trash' && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -338,7 +333,7 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
                     )}
 
                     {/* Trash or Restore action */}
-                    {activeFilter === 'trash' ? (
+                    {state.activeFilter === 'trash' ? (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -397,12 +392,11 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
       </div>
 
       {/* Mobile Floating Action Button to create a note */}
-      {activeFilter !== 'trash' && (
+      {state.activeFilter !== 'trash' && (
         <button
           type="button"
           onClick={async () => {
             await createNote();
-            setMobileView('editor');
           }}
           className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-blue-600 text-white shadow-2xl shadow-blue-600/50 flex items-center justify-center hover:scale-105 active:scale-95 transition cursor-pointer"
           title="Crear nueva nota"

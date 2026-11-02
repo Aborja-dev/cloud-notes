@@ -14,7 +14,7 @@ import {
 import { useNotes } from '../context/NotesContext';
 
 export const AuthScreen: React.FC = () => {
-  const { loginWithGoogle, authLoading } = useNotes();
+  const { loginWithGoogle, state } = useNotes();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden">
@@ -84,7 +84,7 @@ export const AuthScreen: React.FC = () => {
           <button
             type="button"
             onClick={loginWithGoogle}
-            disabled={authLoading}
+            disabled={state.authLoading}
             className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm shadow-xl shadow-white/10 transition active:scale-[0.98] inline-flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">

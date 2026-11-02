@@ -46,10 +46,8 @@ const NOTE_COLORS = [
 export const NoteEditor: React.FC = () => {
   const {
     notes,
+    state,
     folders,
-    selectedNoteId,
-    syncState,
-    isOnline,
     updateNote,
     deleteNote,
     restoreNote,
@@ -57,8 +55,7 @@ export const NoteEditor: React.FC = () => {
     createNote,
     setMobileView,
   } = useNotes();
-
-  const activeNote = notes.find((n) => n.id === selectedNoteId);
+  const activeNote = notes.find((n) => n.id === state.selectedNoteId);
 
   const [title, setTitle] = useState('');
   const [copied, setCopied] = useState(false);
@@ -484,12 +481,12 @@ export const NoteEditor: React.FC = () => {
         <div className="flex items-center gap-2">
           {/* Cloud Sync indicator pill */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            {syncState === 'saving' ? (
+            {state.syncState === 'saving' ? (
               <>
                 <RefreshCw className="w-3 h-3 text-amber-500 animate-spin" />
                 <span className="text-amber-600 dark:text-amber-400">Guardando en la nube...</span>
               </>
-            ) : isOnline ? (
+            ) : state.isOnline ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span className="text-emerald-600 dark:text-emerald-400">Guardado en la nube</span>

@@ -1,83 +1,56 @@
 import { create } from "zustand";
-import type { Folder, UserProfile } from "../types";
-import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
-import { db } from "../firebase";
+import type { Folder, Note } from "../types";
 
-class FolderClass {
-    subscribe = (
-        userId: string,
-        onFolders: (folders: Folder[]) => void,
-        onError: (error: Error) => void
-    ) => {
-        const foldersQuery = query(collection(db, 'folders'), where('userId', '==', userId));
-
-        return onSnapshot(
-            foldersQuery,
-            (snapshot) => {
-                const folderList = snapshot.docs
-                    .map((docSnap) => ({ ...docSnap.data(), id: docSnap.id } as Folder))
-                    .sort((a, b) => a.name.localeCompare(b.name));
-                onFolders(folderList);
-            },
-            onError
-        );
-    }
-}
-
-export const folderRepository = new FolderClass();
-
-interface StorageState {
+interface FolderSlice {
     folders: Folder[];
     setFolders: (folders: Folder[]) => void;
-    createFolder: (folder:{ name: string, color: string, icon: string }, user: UserProfile, newId: string) => Promise<string>;
-    updateFolder: (id: string, name: string, color: string, icon: string) => Promise<void>;
-    deleteFolder: (folderId: string) => Promise<void>;
+    addFolder: (folder: Folder) => void;
+    updateFolder: (folderId: string, updates: Pick<Folder, "name" | "color" | "icon">) => void;
+    removeFolder: (folderId: string) => void;
 }
 
-export const useStorage = create<StorageState>()((set) => ({
+interface NotesSlice {
+    notes: Note[];
+    setNotes: (notes: Note[]) => void;
+    addNote: (note: Note) => void;
+    updateNote: (noteId: string, updates: Partial<Note>) => void;
+    removeNote: (noteId: string) => void;
+}
+
+type StorageState = FolderSlice & NotesSlice;
+
+const createFolderSlice = (set: (partial: Partial<StorageState> | ((state: StorageState) => Partial<StorageState>)) => void): FolderSlice => ({
     folders: [],
     setFolders: (folders) => set({ folders }),
-    createFolder: async (
-        folder: { name: string, color: string, icon: string },
-        user: UserProfile,
-        newId: string
-    ): Promise<string> => {
-        const { name, color, icon } = folder;
-        const newFolder: Folder = {
-            id: newId,
-            userId: user.uid,
-            name: name.trim() || 'Nueva Carpeta',
-            color,
-            icon,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        };
-        await setDoc(doc(db, 'folders', newId), newFolder);
-        set((state) => ({
-            folders: [...state.folders, newFolder]
-        }));
-        return newId;
-    },
-    updateFolder: async (id: string, name: string, color: string, icon: string): Promise<void> => {
-        const updatedAt = serverTimestamp();
-        await updateDoc(doc(db, 'folders', id), {
-            name: name.trim(),
-            color,
-            icon,
-            updatedAt,
-        });
-        set((state) => ({
-            folders: state.folders.map((folder) =>
-                folder.id === id
-                    ? { ...folder, name: name.trim(), color, icon, updatedAt }
-                    : folder
-            ),
-        }));
-    },
-    deleteFolder: async (folderId: string): Promise<void> => {
-        await deleteDoc(doc(db, 'folders', folderId));
-        set((state) => ({
-            folders: state.folders.filter((folder) => folder.id !== folderId),
-        }));
-    },
-}))
+    addFolder: (folder) => set((state) => ({
+        folders: [...state.folders.filter((storedFolder) => storedFolder.id !== folder.id), folder]
+            .sort((a, b) => a.name.localeCompare(b.name)),
+    })),
+    updateFolder: (folderId, updates) => set((state) => ({
+        folders: state.folders.map((folder) =>
+            folder.id === folderId ? { ...folder, ...updates } : folder
+        ).sort((a, b) => a.name.localeCompare(b.name)),
+    })),
+    removeFolder: (folderId) => set((state) => ({
+        folders: state.folders.filter((folder) => folder.id !== folderId),
+    })),
+});
+
+const createNotesSlice = (set: (partial: Partial<StorageState> | ((state: StorageState) => Partial<StorageState>)) => void): NotesSlice => ({
+    notes: [],
+    setNotes: (notes) => set({ notes }),
+    addNote: (note) => set((state) => ({
+        notes: [...state.notes.filter((storedNote) => storedNote.id !== note.id), note],
+    })),
+    updateNote: (noteId, updates) => set((state) => ({
+        notes: state.notes.map((note) => note.id === noteId ? { ...note, ...updates } : note),
+    })),
+    removeNote: (noteId) => set((state) => ({
+        notes: state.notes.filter((note) => note.id !== noteId),
+    })),
+});
+
+export const useStorage = create<StorageState>()((set) => ({
+    ...createFolderSlice(set),
+    ...createNotesSlice(set),
+}));

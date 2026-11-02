@@ -1,35 +1,19 @@
-import React, { createContext, useContext, useEffect, useState, useTransition } from 'react';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp
-} from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useReducer, useTransition } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { db, auth, googleProvider, signInWithPopup, signOut, handleFirestoreError, OperationType } from '../firebase';
-import type { Note, Folder, ViewFilter, UserProfile } from '../types';
+import { auth, googleProvider, signInWithPopup, signOut, handleFirestoreError, OperationType } from '../firebase';
+import type { Note, Folder, UserProfile } from '../types';
 import { useStorage } from '../datos/storage';
-import type { SyncState } from '../state/uiState';
+import { folderRepository } from '../features/folders/data/folderRepository';
+import { notesRepository } from '../features/notes/data/notesRepository';
+import { INITIAL_UI_STATE, type UIState } from '../state/uiState';
+import { uiReducer } from '../state/actions';
 
 interface NotesContextType {
-  user: UserProfile | null;
-  authLoading: boolean;
+  state: UIState;
   notes: Note[];
   folders: Folder[];
-  activeFilter: ViewFilter;
-  selectedNoteId: string | null;
-  searchQuery: string;
-  syncState: SyncState;
-  lastSyncTime: Date | null;
-  isOnline: boolean;
-  mobileView: 'list' | 'editor';
   setMobileView: (view: 'list' | 'editor') => void;
-  setActiveFilter: (filter: ViewFilter) => void;
+  setActiveFilter: (filter: UIState['activeFilter']) => void;
   setSelectedNoteId: (id: string | null) => void;
   setSearchQuery: (query: string) => void;
   loginWithGoogle: () => Promise<void>;
@@ -52,35 +36,27 @@ export function generateId(): string {
 }
 
 export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [state, dispatch] = useReducer(uiReducer, INITIAL_UI_STATE);
   const {
     folders,
-    createFolder: create,
+    notes,
+    setFolders,
+    setNotes,
+    addFolder,
     updateFolder: updateStoredFolder,
-    deleteFolder: deleteStoredFolder,
+    removeFolder,
+    addNote: addStoredNote,
+    updateNote: updateStoredNote,
+    removeNote: removeStoredNote,
   } = useStorage();
-  const [activeFilter, setActiveFilter] = useState<ViewFilter>('all');
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [syncState, setSyncState] = useState<SyncState>('synced');
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(new Date());
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   const [, startTransition] = useTransition();
 
 
   // Listen to network status
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      setSyncState('synced');
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
-      setSyncState('offline');
-    };
+    dispatch({ type: 'SET_ONLINE', payload: { isOnline: navigator.onLine } });
+    const handleOnline = () => dispatch({ type: 'SET_ONLINE', payload: { isOnline: true } });
+    const handleOffline = () => dispatch({ type: 'SET_ONLINE', payload: { isOnline: false } });
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -94,18 +70,16 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
       if (firebaseUser) {
-        setUser({
+        const userProfile: UserProfile = {
           uid: firebaseUser.uid,
           displayName: firebaseUser.displayName || 'Usuario',
           email: firebaseUser.email,
           photoURL: firebaseUser.photoURL,
-        });
+        };
+        dispatch({ type: 'LOGIN', payload: { userProfile } });
       } else {
-        setUser(null);
-        setNotes([]);
-        setSelectedNoteId(null);
+        dispatch({ type: 'LOGOUT' });
       }
-      setAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -113,53 +87,52 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time Firestore sync when authenticated
   useEffect(() => {
-    if (!user) {
+    if (!state.logged) {
+      setNotes([]);
       return;
     }
-    const notesPath = 'notes';
-    const notesQuery = query(collection(db, notesPath), where('userId', '==', user.uid));
-
-    const unsubscribeNotes = onSnapshot(
-      notesQuery,
-      (snapshot) => {
-        const notesList: Note[] = [];
-        snapshot.forEach((docSnap) => {
-          notesList.push(docSnap.data() as Note);
-        });
-
-        // Sort: pinned first, then by updatedAt descending
-        notesList.sort((a, b) => {
-          if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-          const timeA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : 0);
-          const timeB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : 0);
-          return timeB - timeA;
-        });
-
-        startTransition(() => {
-          setNotes(notesList);
-          setLastSyncTime(new Date());
-          setSyncState('synced');
-
-          // Auto-select first note if none selected or if previously selected was deleted
-          setSelectedNoteId((prev) => {
-            if (prev && notesList.some((n) => n.id === prev)) {
-              return prev;
-            }
-            const activeNotes = notesList.filter((n) => !n.isArchived);
-            return activeNotes.length > 0 ? activeNotes[0].id : null;
-          });
-        });
+    return notesRepository.subscribe(
+      state.logged.uid,
+      (syncedNotes) => {
+        setNotes(syncedNotes);
+        startTransition(() => dispatch({
+          type: 'NOTES_LOADED',
+          payload: {
+            noteIds: syncedNotes.map((note) => note.id),
+            firstActiveNoteId: syncedNotes.find((note) => !note.isArchived)?.id ?? null,
+            updatedAt: new Date(),
+          },
+        }));
       },
       (error) => {
-        setSyncState('error');
-        handleFirestoreError(error, OperationType.LIST, notesPath);
+        dispatch({ type: 'NOTES_ERROR', payload: { errorMessage: error.message } });
+        handleFirestoreError(error, OperationType.LIST, 'notes');
       }
     );
+  }, [state.logged, setNotes, startTransition]);
 
-    return () => {
-      unsubscribeNotes();
-    };
-  }, [user, startTransition]);
+  useEffect(() => {
+    if (!state.logged) {
+      setFolders([]);
+      return;
+    }
+    if (!state.isOnline) {
+      dispatch({ type: 'LOAD_ERROR', payload: { errorMessage: 'No internet connection' } });
+      return;
+    }
+    dispatch({ type: 'LOADING' });
+    return folderRepository.subscribe(
+      state.logged.uid,
+      (storedFolders) => {
+        setFolders(storedFolders);
+        dispatch({ type: 'LOAD_SUCCESS', payload: { updatedAt: new Date() } });
+      },
+      (error) => {
+        dispatch({ type: 'LOAD_ERROR', payload: { errorMessage: error.message } });
+        handleFirestoreError(error, OperationType.LIST, 'folders');
+      }
+    );
+  }, [state.logged, state.isOnline, setFolders]);
 
   const loginWithGoogle = async () => {
     try {
@@ -178,95 +151,104 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const createNote = async (folderId?: string): Promise<string | null> => {
-    if (!user) return null;
-    setSyncState('saving');
+    if (!state.logged) return null;
+    dispatch({ type: 'CREATE_NOTE', status: 'started' });
     const newId = generateId();
-    const effectiveFolderId = folderId !== undefined
-      ? folderId
-      : (activeFilter !== 'all' && activeFilter !== 'unorganized' && activeFilter !== 'pinned' && activeFilter !== 'trash'
-        ? activeFilter
-        : '');
 
-    const newNote: Note = {
-      id: newId,
-      userId: user.uid,
-      folderId: effectiveFolderId,
+    const newNote = {
+      folderId: folderId || '',
       title: 'Nueva nota',
       content: '',
       isPinned: false,
       isArchived: false,
       color: '#ffffff',
       tags: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     };
 
     const path = `notes/${newId}`;
     try {
-      await setDoc(doc(db, 'notes', newId), newNote);
-      setSelectedNoteId(newId);
-      setMobileView('editor');
-      setSyncState('synced');
-      setLastSyncTime(new Date());
+      const createdNote = await notesRepository.create(newNote, state.logged, newId);
+      addStoredNote(createdNote);
+      dispatch({
+        type: 'CREATE_NOTE',
+        status: 'succeeded',
+        payload: { noteId: newId, updatedAt: new Date() },
+      });
       return newId;
     } catch (err) {
-      setSyncState('error');
+      dispatch({
+        type: 'CREATE_NOTE',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, OperationType.CREATE, path);
       return null;
     }
   };
 
   const updateNote = async (id: string, updates: Partial<Note>): Promise<void> => {
-    if (!user) return;
-    setSyncState('saving');
+    if (!state.logged) return;
+    dispatch({ type: 'UPDATE_NOTE', status: 'started' });
     const path = `notes/${id}`;
     try {
-      await updateDoc(doc(db, 'notes', id), {
-        ...updates,
-        updatedAt: serverTimestamp(),
-      });
-      setSyncState('synced');
-      setLastSyncTime(new Date());
+      await notesRepository.update(id, updates);
+      updateStoredNote(id, { ...updates, updatedAt: new Date() });
+      dispatch({ type: 'UPDATE_NOTE', status: 'succeeded', payload: { updatedAt: new Date() } });
     } catch (err) {
-      setSyncState('error');
+      dispatch({
+        type: 'UPDATE_NOTE',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
   };
 
   const deleteNote = async (id: string, permanent = false): Promise<void> => {
-    if (!user) return;
-    setSyncState('saving');
+    if (!state.logged) return;
+    dispatch({ type: 'DELETE_NOTE', status: 'started' });
     const path = `notes/${id}`;
     try {
       if (permanent) {
-        await deleteDoc(doc(db, 'notes', id));
+        await notesRepository.delete(id);
+        removeStoredNote(id);
       } else {
-        await updateDoc(doc(db, 'notes', id), {
+        await notesRepository.update(id, {
           isArchived: true,
-          updatedAt: serverTimestamp(),
         });
+        updateStoredNote(id, { isArchived: true, updatedAt: new Date() });
       }
-      setSyncState('synced');
-      setLastSyncTime(new Date());
+      dispatch({
+        type: 'DELETE_NOTE',
+        status: 'succeeded',
+        payload: { noteId: id, permanent, updatedAt: new Date() },
+      });
     } catch (err) {
-      setSyncState('error');
+      dispatch({
+        type: 'DELETE_NOTE',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, permanent ? OperationType.DELETE : OperationType.UPDATE, path);
     }
   };
 
   const restoreNote = async (id: string): Promise<void> => {
-    if (!user) return;
-    setSyncState('saving');
+    if (!state.logged) return;
+    dispatch({ type: 'RESTORE_NOTE', status: 'started' });
     const path = `notes/${id}`;
     try {
-      await updateDoc(doc(db, 'notes', id), {
+      await notesRepository.update(id, {
         isArchived: false,
-        updatedAt: serverTimestamp(),
       });
-      setSyncState('synced');
-      setLastSyncTime(new Date());
+      updateStoredNote(id, { isArchived: false, updatedAt: new Date() });
+      dispatch({ type: 'RESTORE_NOTE', status: 'succeeded', payload: { updatedAt: new Date() } });
     } catch (err) {
-      setSyncState('error');
+      dispatch({
+        type: 'RESTORE_NOTE',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
   };
@@ -282,8 +264,8 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const createFolder = async (name: string, color = '#3b82f6', icon = 'folder'): Promise<string | null> => {
-    if (!user) return null;
-    setSyncState('saving');
+    if (!state.logged) return null;
+    dispatch({ type: 'CREATE_FOLDER', status: 'started' });
     const newId = generateId();
     const newFolder = {
       name: name.trim() || 'Nueva Carpeta',
@@ -291,36 +273,48 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       icon,
     };
     try {
-      const newFolderId = await create(newFolder, user, newId);
-      setActiveFilter(newFolderId);
-      setSyncState('synced');
-      setLastSyncTime(new Date());
-      return newFolderId;
+      const createdFolder = await folderRepository.create(newFolder, state.logged, newId);
+      addFolder(createdFolder);
+      dispatch({
+        type: 'CREATE_FOLDER',
+        status: 'succeeded',
+        payload: { folderId: createdFolder.id, updatedAt: new Date() },
+      });
+      return createdFolder.id;
     } catch (err) {
       const path = `folders/${newId}`;
-      setSyncState('error');
+      dispatch({
+        type: 'CREATE_FOLDER',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, OperationType.CREATE, path);
       return null;
     }
   };
 
   const updateFolder = async (id: string, name: string, color: string, icon: string): Promise<void> => {
-    if (!user) return;
-    setSyncState('saving');
+    if (!state.logged) return;
+    dispatch({ type: 'UPDATE_FOLDER', status: 'started' });
     const path = `folders/${id}`;
     try {
-      await updateStoredFolder(id, name, color, icon);
-      setSyncState('synced');
-      setLastSyncTime(new Date());
+      const normalizedName = name.trim();
+      await folderRepository.update(id, { name: normalizedName, color, icon });
+      updateStoredFolder(id, { name: normalizedName, color, icon });
+      dispatch({ type: 'UPDATE_FOLDER', status: 'succeeded', payload: { updatedAt: new Date() } });
     } catch (err) {
-      setSyncState('error');
+      dispatch({
+        type: 'UPDATE_FOLDER',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, OperationType.UPDATE, path);
     }
   };
 
   const deleteFolder = async (id: string, moveNotesToRoot = true): Promise<void> => {
-    if (!user) return;
-    setSyncState('saving');
+    if (!state.logged) return;
+    dispatch({ type: 'DELETE_FOLDER', status: 'started' });
 
     // Handle notes belonging to this folder
     const notesInFolder = notes.filter((n) => n.folderId === id);
@@ -336,14 +330,19 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const path = `folders/${id}`;
     try {
-      await deleteStoredFolder(id);
-      if (activeFilter === id) {
-        setActiveFilter('all');
-      }
-      setSyncState('synced');
-      setLastSyncTime(new Date());
+      await folderRepository.delete(id);
+      removeFolder(id);
+      dispatch({
+        type: 'DELETE_FOLDER',
+        status: 'succeeded',
+        payload: { folderId: id, updatedAt: new Date() },
+      });
     } catch (err) {
-      setSyncState('error');
+      dispatch({
+        type: 'DELETE_FOLDER',
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       handleFirestoreError(err, OperationType.DELETE, path);
     }
   };
@@ -351,21 +350,13 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <NotesContext.Provider
       value={{
-        user,
-        authLoading,
+        state,
         notes,
         folders,
-        activeFilter,
-        selectedNoteId,
-        searchQuery,
-        syncState,
-        lastSyncTime,
-        isOnline,
-        mobileView,
-        setMobileView,
-        setActiveFilter,
-        setSelectedNoteId,
-        setSearchQuery,
+        setMobileView: (view) => dispatch({ type: 'SET_MOBILE_VIEW', payload: { view } }),
+        setActiveFilter: (filter) => dispatch({ type: 'SET_ACTIVE_FILTER', payload: { filter } }),
+        setSelectedNoteId: (id) => dispatch({ type: 'SET_SELECTED_NOTE_ID', payload: { noteId: id } }),
+        setSearchQuery: (query) => dispatch({ type: 'SET_SEARCH_QUERY', payload: { query } }),
         loginWithGoogle,
         logout,
         createNote,
