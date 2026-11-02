@@ -13,7 +13,7 @@ import {
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, googleProvider, signInWithPopup, signOut, handleFirestoreError, OperationType } from '../firebase';
 import type { Note, Folder, ViewFilter, UserProfile } from '../types';
-import { folderRepository, useStorage } from '../datos/storage';
+import { useStorage } from '../datos/storage';
 import type { SyncState } from '../state/uiState';
 
 interface NotesContextType {
@@ -57,7 +57,6 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [notes, setNotes] = useState<Note[]>([]);
   const {
     folders,
-    setFolders,
     createFolder: create,
     updateFolder: updateStoredFolder,
     deleteFolder: deleteStoredFolder,
@@ -104,7 +103,6 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else {
         setUser(null);
         setNotes([]);
-        setFolders([]);
         setSelectedNoteId(null);
       }
       setAuthLoading(false);
@@ -118,18 +116,6 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) {
       return;
     }
-    const unsubscribeFolders = folderRepository.subscribe(user.uid, (folderList) => {
-      startTransition(() => {
-        setFolders(folderList);
-        setLastSyncTime(new Date());
-        setSyncState('synced');
-      });
-    }, (error: Error) => {
-      setSyncState('error');
-      handleFirestoreError(error, OperationType.LIST, 'folders');
-    });
-
-
     const notesPath = 'notes';
     const notesQuery = query(collection(db, notesPath), where('userId', '==', user.uid));
 
@@ -171,10 +157,9 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
 
     return () => {
-      unsubscribeFolders();
       unsubscribeNotes();
     };
-  }, [user, setFolders, startTransition]);
+  }, [user, startTransition]);
 
   const loginWithGoogle = async () => {
     try {

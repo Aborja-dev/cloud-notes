@@ -8,10 +8,12 @@ import { AuthScreen } from './components/AuthScreen';
 import { Cloud, Loader2 } from 'lucide-react';
 import { useStorage } from './datos/storage';
 import foldersData from './datos/folders.json';
+import { UiProvider, useUI } from './state/uiState';
 const Workspace: React.FC = () => {
   const { user, authLoading, createNote, mobileView, folders } = useNotes();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const { folders: storedFolders, setFolders } = useStorage();
+  const { state: uiState, actions: uiActions } = useUI();
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -51,7 +53,7 @@ const Workspace: React.FC = () => {
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
       />
-      <pre>{JSON.stringify(storedFolders, null, 2)}</pre>
+      <pre>{JSON.stringify(uiState, null, 2)}</pre>
       {/* Note List column: on mobile, show if mobileView === 'list', hide if mobileView === 'editor' */}
       <div className={`h-full ${mobileView === 'editor' ? 'hidden md:flex' : 'flex w-full md:w-80 lg:w-96'} shrink-0`}>
         <NoteList
@@ -77,7 +79,9 @@ export default function App() {
   return (
     <AuthProvider>
       <NotesProvider>
+        <UiProvider>
         <Workspace />
+        </UiProvider>
       </NotesProvider>
     </AuthProvider>
   );

@@ -1,5 +1,7 @@
-import { createContext, useReducer } from "react";
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import type { UserProfile, ViewFilter } from "../types";
+import { auth, handleFirestoreError, OperationType } from "../firebase";
 import { folderRepository, useStorage } from "../datos/storage";
 export type SyncState = 'synced' | 'saving' | 'offline' | 'error';
 export interface UIState {
@@ -88,6 +90,8 @@ const uiReducer = (state: UIState, action: any) => {
             return {  
                 ...state,
                 loading: 'idle' as const,
+                lastSyncTime: new Date(),
+                errorMessage: null,
             };
              
         case 'LOAD_ERROR':
@@ -96,6 +100,18 @@ const uiReducer = (state: UIState, action: any) => {
                 loading: 'error' as const,
                 errorMessage: action.payload.errorMessage,
             };
+        case 'SET_LOGGED':
+            return {
+                ...state,
+                logged: action.payload.user,
+                loading: 'idle' as const,
+                errorMessage: null,
+            };
+        case 'SET_ONLINE':
+            return {
+                ...state,
+                isOnline: action.payload.isOnline,
+            };
         default:
             return state;
     }
@@ -103,33 +119,70 @@ const uiReducer = (state: UIState, action: any) => {
 export const UiProvider = ({children}: {children: React.ReactNode}) =>{
     const [state, dispatch] = useReducer(uiReducer, INITIAL_UI_STATE);
     const {setFolders} = useStorage();
-    const initialLoad = () => {
-        const check = loadStage.trigger(state);
-        if (!check.allowed) {
-            console.warn('Initial load not allowed:', check.reason);
-            dispatch(loadStage.onError(check.reason || 'Unknown reason'));
-        }
-        const userID = state.logged?.uid;
-        if (userID) {
-            folderRepository.subscribe(
-                userID,
-                (folders) => {
-                    setFolders(folders);
-                    dispatch(loadStage.onSuccess());
-                },
-                (error) => {
-                    console.error('Error loading folders:', error);
-                    dispatch(loadStage.onError(error.message));
-                }
-            );
+    useEffect(() => onAuthStateChanged(auth, (firebaseUser: User | null) => {
+        const user: UserProfile | null = firebaseUser
+            ? {
+                uid: firebaseUser.uid,
+                displayName: firebaseUser.displayName || 'Usuario',
+                email: firebaseUser.email,
+                photoURL: firebaseUser.photoURL,
+            }
+            : null;
+        dispatch({ type: 'SET_LOGGED', payload: { user } });
+    }), []);
+
+    useEffect(() => {
+        dispatch({ type: 'SET_ONLINE', payload: { isOnline: navigator.onLine } });
+        const handleOnline = () => dispatch({ type: 'SET_ONLINE', payload: { isOnline: true } });
+        const handleOffline = () => dispatch({ type: 'SET_ONLINE', payload: { isOnline: false } });
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!state.logged) {
+            setFolders([]);
+            return;
         }
 
-    };
+        const check = loadStage.trigger(state);
+        if (!check.allowed) {
+            if (!state.isOnline) {
+                dispatch(loadStage.onError(check.reason || 'No internet connection'));
+            }
+            return;
+        }
+
+        dispatch({ type: 'LOADING' });
+        return folderRepository.subscribe(
+            state.logged.uid,
+            (folders) => {
+                setFolders(folders);
+                dispatch(loadStage.onSuccess());
+            },
+            (error) => {
+                dispatch(loadStage.onError(error.message));
+                handleFirestoreError(error, OperationType.LIST, 'folders');
+            }
+        );
+    }, [state.logged, state.isOnline, setFolders]);
+
     return (
-        <uiContext.Provider value={{state, actions: {
-            initialLoad,
-        }}}>
+        <uiContext.Provider value={{state, actions: {}}}>
             {children}
         </uiContext.Provider>
     )
 };
+
+export const useUI = () => {
+    const context = useContext(uiContext);
+    if (!context) {
+        throw new Error("useUI must be used within a UiProvider");
+    }
+    return context;
+}
