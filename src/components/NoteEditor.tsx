@@ -1,4 +1,5 @@
 import React from 'react';
+import { EditorContent } from '@tiptap/react';
 import { 
   Pin, 
   Trash2, 
@@ -70,9 +71,7 @@ export const NoteEditor: React.FC = () => {
     showColorMenu,
     showBlockMenu,
     showEditorState,
-    editorRef,
-    updateActiveFormats,
-    handleContentInput,
+    editor,
     handleTitleChange,
     executeFormat,
     handleCopy,
@@ -655,13 +654,13 @@ export const NoteEditor: React.FC = () => {
       <div 
         className="flex-1 flex flex-col p-4 sm:p-8 overflow-y-auto cursor-text"
         onClick={() => {
-          if (editorRef.current && document.activeElement !== editorRef.current) {
-            editorRef.current.focus();
+          if (editor && !editor.isFocused) {
+            editor.commands.focus();
           }
         }}
         onTouchEnd={(e) => {
-          if (e.target === e.currentTarget && editorRef.current) {
-            editorRef.current.focus();
+          if (e.target === e.currentTarget && editor) {
+            editor.commands.focus();
           }
         }}
       >
@@ -675,17 +674,11 @@ export const NoteEditor: React.FC = () => {
           className="text-xl sm:text-3xl font-extrabold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 border-none outline-hidden bg-transparent mb-3 sm:mb-4 tracking-tight shrink-0"
         />
 
-        {/* WYSIWYG ContentEditable Area */}
-        <div
-          ref={editorRef}
-          contentEditable
-          tabIndex={0}
-          suppressContentEditableWarning
-          onInput={handleContentInput}
-          onKeyUp={updateActiveFormats}
-          onMouseUp={updateActiveFormats}
-          data-placeholder="Escribe tu nota aquí... Puedes aplicar negrita, cursiva, subrayado, listas con viñetas o numeradas y ajustar la alineación del texto."
-          className="flex-1 min-h-[400px] pb-36 outline-hidden text-slate-800 dark:text-slate-200 text-base leading-relaxed font-sans empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none
+        <EditorContent
+          editor={editor}
+          className="flex-1 text-slate-800 dark:text-slate-200 text-base leading-relaxed font-sans
+            [&_.ProseMirror]:min-h-[400px] [&_.ProseMirror]:pb-36 [&_.ProseMirror]:outline-hidden
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-slate-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none
             [&_h1]:text-2xl [&_h1]:font-extrabold [&_h1]:my-3 [&_h1]:pb-1 [&_h1]:border-b [&_h1]:border-slate-200 dark:[&_h1]:border-slate-800
             [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-2.5 [&_h2]:pb-1 [&_h2]:border-b [&_h2]:border-slate-200 dark:[&_h2]:border-slate-800
             [&_h3]:text-lg [&_h3]:font-bold [&_h3]:my-2
