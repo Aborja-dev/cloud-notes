@@ -7,34 +7,19 @@ import {
   Download, 
   Copy, 
   Check, 
-  Bold, 
-  Italic, 
-  Underline,
-  Strikethrough,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  List, 
-  ListOrdered, 
-  Quote, 
-  Minus, 
-  RotateCcw,
   RefreshCw,
   WifiOff,
   Palette,
   ChevronDown,
   ChevronLeft,
-  RemoveFormatting,
-  Heading1,
-  Heading2,
-  Heading3,
   Type,
   Info,
   X,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useNotes } from '../context/NotesContext';
 import { FOLDER_ICONS } from './FolderModal';
+import { EditorToolbar } from './EditorToolbar';
 import { useEditor } from '../features/editor/useEditor';
 
 const NOTE_COLORS = [
@@ -47,7 +32,15 @@ const NOTE_COLORS = [
   { name: 'Pizarra tenue', value: '#f1f5f9' },
 ];
 
-export const NoteEditor: React.FC = () => {
+interface NoteEditorProps {
+  isNoteListCollapsed: boolean;
+  onToggleNoteList: () => void;
+}
+
+export const NoteEditor: React.FC<NoteEditorProps> = ({
+  isNoteListCollapsed,
+  onToggleNoteList,
+}) => {
   const {
     notes,
     state,
@@ -72,6 +65,8 @@ export const NoteEditor: React.FC = () => {
     showBlockMenu,
     showEditorState,
     editor,
+    canUndo,
+    undo,
     handleTitleChange,
     executeFormat,
     handleCopy,
@@ -110,14 +105,6 @@ export const NoteEditor: React.FC = () => {
   const currentFolder = folders.find((f) => f.id === activeNote.folderId);
   const CurrentFolderIcon = currentFolder ? FOLDER_ICONS[currentFolder.icon] || FolderIcon : FolderIcon;
 
-  const blockLabels: Record<string, string> = {
-    p: 'Párrafo',
-    h1: 'Título grande (H1)',
-    h2: 'Título mediano (H2)',
-    h3: 'Subtítulo (H3)',
-    blockquote: 'Cita en bloque',
-  };
-
   return (
     <div className="relative flex-1 flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden select-text">
       {/* Top Banner if in Trash */}
@@ -148,6 +135,18 @@ export const NoteEditor: React.FC = () => {
       {/* Editor Top Navigation Bar */}
       <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
+          {isNoteListCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleNoteList}
+              className="hidden md:flex p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Expandir lista de notas"
+              aria-label="Expandir lista de notas"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Mobile Back to Notes button */}
           <button
             type="button"
@@ -329,332 +328,22 @@ export const NoteEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* RICH TEXT FORMATTING TOOLBAR */}
-      <div 
-        className="px-4 sm:px-6 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/90 flex items-center gap-1 overflow-x-auto text-slate-600 dark:text-slate-300 shrink-0 select-none scrollbar-none"
-        onMouseDown={(e) => {
-          // Keep editor selection active when clicking toolbar empty space
-          if ((e.target as HTMLElement).tagName !== 'BUTTON') {
-            e.preventDefault();
-          }
-        }}
-      >
-        {/* Paragraph / Heading Block Selector */}
-        <div className="relative">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              toggleBlockMenu();
-            }}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-medium flex items-center gap-1.5 transition"
-            title="Estilo de párrafo o encabezado"
-          >
-            <span>{blockLabels[activeFormats.currentBlock] || 'Párrafo'}</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {showBlockMenu && (
-            <div 
-              className="absolute left-0 top-9 z-40 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 text-xs animate-in fade-in"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  executeFormat('formatBlock', '<p>');
-                  closeBlockMenu();
-                }}
-                className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
-                  activeFormats.currentBlock === 'p' ? 'text-blue-600 font-semibold' : ''
-                }`}
-              >
-                <Type className="w-3.5 h-3.5" />
-                <span>Párrafo normal</span>
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  executeFormat('formatBlock', '<h1>');
-                  closeBlockMenu();
-                }}
-                className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
-                  activeFormats.currentBlock === 'h1' ? 'text-blue-600 font-semibold' : ''
-                }`}
-              >
-                <Heading1 className="w-3.5 h-3.5" />
-                <span className="font-bold text-sm">Título grande (H1)</span>
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  executeFormat('formatBlock', '<h2>');
-                  closeBlockMenu();
-                }}
-                className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
-                  activeFormats.currentBlock === 'h2' ? 'text-blue-600 font-semibold' : ''
-                }`}
-              >
-                <Heading2 className="w-3.5 h-3.5" />
-                <span className="font-semibold text-xs">Título mediano (H2)</span>
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  executeFormat('formatBlock', '<h3>');
-                  closeBlockMenu();
-                }}
-                className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
-                  activeFormats.currentBlock === 'h3' ? 'text-blue-600 font-semibold' : ''
-                }`}
-              >
-                <Heading3 className="w-3.5 h-3.5" />
-                <span>Subtítulo (H3)</span>
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  executeFormat('formatBlock', '<blockquote>');
-                  closeBlockMenu();
-                }}
-                className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
-                  activeFormats.currentBlock === 'blockquote' ? 'text-blue-600 font-semibold' : ''
-                }`}
-              >
-                <Quote className="w-3.5 h-3.5" />
-                <span className="italic">Cita en bloque</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
-
-        {/* Inline styles: Negrita, Cursiva, Subrayado, Tachado */}
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('bold');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.bold
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Negrita (Ctrl+B)"
-          >
-            <Bold className="w-4 h-4 stroke-[2.5]" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('italic');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.italic
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Cursiva (Ctrl+I)"
-          >
-            <Italic className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('underline');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.underline
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Subrayado (Ctrl+U)"
-          >
-            <Underline className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('strikeThrough');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.strike
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Tachado"
-          >
-            <Strikethrough className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
-
-        {/* Text Alignment Controls */}
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('justifyLeft');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.alignLeft
-                ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Alinear a la izquierda"
-          >
-            <AlignLeft className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('justifyCenter');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.alignCenter
-                ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Centrar"
-          >
-            <AlignCenter className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('justifyRight');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.alignRight
-                ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Alinear a la derecha"
-          >
-            <AlignRight className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('justifyFull');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.alignJustify
-                ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-bold'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Justificar texto"
-          >
-            <AlignJustify className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
-
-        {/* List Controls: Con viñetas y numeradas */}
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('insertUnorderedList');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.bulletList
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Lista con viñetas"
-          >
-            <List className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('insertOrderedList');
-            }}
-            className={`p-1.5 rounded-lg transition ${
-              activeFormats.orderedList
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            title="Lista numerada"
-          >
-            <ListOrdered className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
-
-        {/* Additional formatting: Cita, Separador horizontal, Limpiar formato */}
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('formatBlock', '<blockquote>');
-            }}
-            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
-            title="Cita en bloque"
-          >
-            <Quote className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('insertHorizontalRule');
-            }}
-            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
-            title="Insertar línea divisoria"
-          >
-            <Minus className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              executeFormat('removeFormat');
-            }}
-            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
-            title="Eliminar formato"
-          >
-            <RemoveFormatting className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <EditorToolbar
+          activeFormats={activeFormats}
+          canUndo={canUndo}
+          executeFormat={executeFormat}
+          onUndo={undo}
+          showBlockMenu={showBlockMenu}
+          toggleBlockMenu={toggleBlockMenu}
+          closeBlockMenu={closeBlockMenu}
+        />
 
       {/* Editor Content Surface */}
       <div 
-        className="flex-1 flex flex-col p-4 sm:p-8 overflow-y-auto cursor-text"
-        onClick={() => {
-          if (editor && !editor.isFocused) {
+        className="flex min-h-full flex-col p-4 sm:p-8 cursor-text"
+        onClick={(event) => {
+          if (event.target === event.currentTarget && editor && !editor.isFocused) {
             editor.commands.focus();
           }
         }}
@@ -694,6 +383,8 @@ export const NoteEditor: React.FC = () => {
             [&_strike]:line-through
           "
         />
+      </div>
+
       </div>
 
       <div className="absolute bottom-14 right-4 z-50 flex flex-col items-end gap-2">

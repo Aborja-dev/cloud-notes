@@ -9,7 +9,10 @@ import {
   Folder as FolderIcon, 
   RotateCcw,
   Sparkles,
-  Menu
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
 } from 'lucide-react';
 import { useNotes } from '../context/NotesContext';
 import { FOLDER_ICONS } from './FolderModal';
@@ -17,11 +20,19 @@ import type { Note } from '../types';
 
 interface NoteListProps {
   onOpenMobileSidebar: () => void;
+  isSidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+  onCollapse: () => void;
 }
 
 type SortOption = 'updated' | 'title' | 'created';
 
-export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
+export const NoteList: React.FC<NoteListProps> = ({
+  onOpenMobileSidebar,
+  isSidebarCollapsed,
+  onToggleSidebar,
+  onCollapse,
+}) => {
   const {
     notes,
     state,
@@ -165,9 +176,34 @@ export const NoteList: React.FC<NoteListProps> = ({ onOpenMobileSidebar }) => {
           <button
             onClick={onOpenMobileSidebar}
             className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+            title="Abrir barra lateral"
+            aria-label="Abrir barra lateral"
           >
             <Menu className="w-5 h-5" />
           </button>
+
+          <div className="hidden md:flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              title={isSidebarCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+              aria-label={isSidebarCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+            >
+              {isSidebarCollapsed
+                ? <PanelLeftOpen className="h-5 w-5" />
+                : <PanelLeftClose className="h-5 w-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              title="Colapsar lista de notas"
+              aria-label="Colapsar lista de notas"
+            >
+              <PanelRightClose className="h-5 w-5" />
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 truncate">
             <span

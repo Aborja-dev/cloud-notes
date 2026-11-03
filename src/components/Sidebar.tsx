@@ -15,6 +15,7 @@ import {
   Wifi, 
   WifiOff, 
   ChevronRight,
+  PanelLeftClose,
   Folder as DefaultFolderIcon,
   X,
   LogIn
@@ -28,9 +29,16 @@ import type { Folder } from '../types';
 interface SidebarProps {
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  isDesktopCollapsed: boolean;
+  onToggleDesktop: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  isMobileOpen,
+  setIsMobileOpen,
+  isDesktopCollapsed,
+  onToggleDesktop,
+}) => {
   const {
     notes,
     state,
@@ -109,9 +117,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen 
 
       {/* Sidebar container */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-slate-900 text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-slate-900 text-slate-200 flex flex-col transition-[transform,width,opacity] duration-300 ease-in-out border-r border-slate-800 overflow-hidden ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}
+        } ${isDesktopCollapsed ? 'md:w-0 md:border-r-0 md:opacity-0 md:pointer-events-none' : 'md:w-72'}`}
       >
         {/* App Header */}
         <div className="p-4 flex items-center justify-between border-b border-slate-800/80">
@@ -133,8 +141,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen 
           <button
             onClick={() => setIsMobileOpen(false)}
             className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
+            aria-label="Cerrar menú"
           >
             <X className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleDesktop}
+            className="hidden md:block p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+            title="Colapsar barra lateral"
+            aria-label="Colapsar barra lateral"
+          >
+            <PanelLeftClose className="w-5 h-5" />
           </button>
         </div>
 

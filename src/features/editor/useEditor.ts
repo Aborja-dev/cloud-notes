@@ -1,11 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef, type ChangeEvent } from "react";
-import { useEditor as useTiptapEditor } from "@tiptap/react";
+import { useCallback, useEffect, useReducer, useRef, useState, type ChangeEvent } from "react";
 import type { Editor as TiptapEditor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
-import TextAlign from "@tiptap/extension-text-align";
-import Underline from "@tiptap/extension-underline";
 import type { Note } from "../../types";
+import { useEditorContext } from "../../modules/editor.context";
 import { editorReducer, INITIAL_EDITOR_STATE } from "./editorState";
 import {
     calculateEditorStats,
@@ -16,16 +12,6 @@ import {
 } from "./tiptap";
 
 type UpdateNote = (id: string, updates: Partial<Note>) => Promise<void>;
-type EditorHandler = (editor: TiptapEditor) => void;
-
-const EDITOR_EXTENSIONS = [
-    StarterKit,
-    Underline,
-    TextAlign.configure({ types: ["heading", "paragraph"] }),
-    Placeholder.configure({
-        placeholder: "Escribe tu nota aquí... Puedes aplicar negrita, cursiva, subrayado, listas con viñetas o numeradas y ajustar la alineación del texto.",
-    }),
-];
 
 function escapeHtml(value: string): string {
     return value.replace(/[&<>"']/g, (character) => ({
@@ -53,6 +39,8 @@ export const useEditor = (
     updateNote: UpdateNote,
 ) => {
     const [editorState, dispatch] = useReducer(editorReducer, INITIAL_EDITOR_STATE);
+    const [canUndo, setCanUndo] = useState(false);
+    const { editor, setHandlers } = useEditorContext();
     const {
         title,
         copied,
@@ -66,16 +54,6 @@ export const useEditor = (
     const isUpdatingFromProp = useRef(false);
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const onUpdateRef = useRef<EditorHandler>(() => {});
-    const onSelectionUpdateRef = useRef<EditorHandler>(() => {});
-
-    const editor = useTiptapEditor({
-        extensions: EDITOR_EXTENSIONS,
-        content: "",
-        onUpdate: ({ editor: currentEditor }) => onUpdateRef.current(currentEditor),
-        onSelectionUpdate: ({ editor: currentEditor }) =>
-            onSelectionUpdateRef.current(currentEditor),
-    });
 
     const updateStats = useCallback((currentEditor: TiptapEditor) => {
         dispatch({ type: "SET_STATS", payload: calculateEditorStats(currentEditor) });
@@ -107,8 +85,14 @@ export const useEditor = (
         triggerSave(title, currentHtml);
     }, [title, triggerSave, updateStats]);
 
-    onUpdateRef.current = handleContentInput;
-    onSelectionUpdateRef.current = updateActiveFormats;
+    useEffect(() => {
+        setHandlers({
+            onUpdate: handleContentInput,
+            onSelectionUpdate: updateActiveFormats,
+            onTransaction: (currentEditor) => setCanUndo(currentEditor.can().undo()),
+        });
+        return () => setHandlers({});
+    }, [handleContentInput, setHandlers, updateActiveFormats]);
 
     useEffect(() => {
         if (!editor) return;
@@ -151,6 +135,11 @@ export const useEditor = (
         executeEditorCommand(editor, command, value);
         updateActiveFormats(editor);
     }, [editor, updateActiveFormats]);
+
+    const undo = useCallback(() => {
+        if (!editor?.can().undo()) return;
+        editor.chain().focus().undo().run();
+    }, [editor]);
 
     const handleCopy = useCallback(() => {
         if (!editor) return;
@@ -200,6 +189,8 @@ export const useEditor = (
         showBlockMenu,
         showEditorState,
         editor,
+        canUndo,
+        undo,
         handleTitleChange,
         executeFormat,
         handleCopy,
