@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Pin, 
   Trash2, 
@@ -28,11 +28,13 @@ import {
   Heading1,
   Heading2,
   Heading3,
-  Type
+  Type,
+  Info,
+  X,
 } from 'lucide-react';
 import { useNotes } from '../context/NotesContext';
 import { FOLDER_ICONS } from './FolderModal';
-import { useEditor } from '../features/editor/datos';
+import { useEditor } from '../features/editor/useEditor';
 
 const NOTE_COLORS = [
   { name: 'Blanco', value: '#ffffff' },
@@ -58,14 +60,16 @@ export const NoteEditor: React.FC = () => {
   } = useNotes();
   const activeNote = notes.find((n) => n.id === state.selectedNoteId);
 
-  const [showFolderMenu, setShowFolderMenu] = useState(false);
-  const [showColorMenu, setShowColorMenu] = useState(false);
-  const [showBlockMenu, setShowBlockMenu] = useState(false);
   const {
+    editorState,
     title,
     copied,
     activeFormats,
     stats,
+    showFolderMenu,
+    showColorMenu,
+    showBlockMenu,
+    showEditorState,
     editorRef,
     updateActiveFormats,
     handleContentInput,
@@ -73,6 +77,13 @@ export const NoteEditor: React.FC = () => {
     executeFormat,
     handleCopy,
     handleExport,
+    toggleFolderMenu,
+    closeFolderMenu,
+    toggleColorMenu,
+    closeColorMenu,
+    toggleBlockMenu,
+    closeBlockMenu,
+    toggleEditorState,
   } = useEditor(activeNote, updateNote);
 
   if (!activeNote) {
@@ -109,7 +120,7 @@ export const NoteEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden select-text">
+    <div className="relative flex-1 flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden select-text">
       {/* Top Banner if in Trash */}
       {activeNote.isArchived && (
         <div className="bg-rose-500/10 border-b border-rose-500/20 px-6 py-2.5 flex items-center justify-between text-xs text-rose-700 dark:text-rose-300">
@@ -153,10 +164,7 @@ export const NoteEditor: React.FC = () => {
           <div className="relative">
             <button
               type="button"
-              onClick={() => {
-                setShowFolderMenu(!showFolderMenu);
-                setShowColorMenu(false);
-              }}
+              onClick={toggleFolderMenu}
               className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-2 transition"
             >
               <CurrentFolderIcon
@@ -182,7 +190,7 @@ export const NoteEditor: React.FC = () => {
                   type="button"
                   onClick={() => {
                     updateNote(activeNote.id, { folderId: '' });
-                    setShowFolderMenu(false);
+                    closeFolderMenu();
                   }}
                   className={`w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${
                     !activeNote.folderId ? 'text-blue-600 font-semibold' : 'text-slate-700 dark:text-slate-200'
@@ -200,7 +208,7 @@ export const NoteEditor: React.FC = () => {
                       key={f.id}
                       onClick={() => {
                         updateNote(activeNote.id, { folderId: f.id });
-                        setShowFolderMenu(false);
+                        closeFolderMenu();
                       }}
                       className={`w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${
                         activeNote.folderId === f.id ? 'text-blue-600 font-semibold' : 'text-slate-700 dark:text-slate-200'
@@ -219,10 +227,7 @@ export const NoteEditor: React.FC = () => {
           <div className="relative">
             <button
               type="button"
-              onClick={() => {
-                setShowColorMenu(!showColorMenu);
-                setShowFolderMenu(false);
-              }}
+              onClick={toggleColorMenu}
               className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               title="Color de tarjeta"
             >
@@ -239,7 +244,7 @@ export const NoteEditor: React.FC = () => {
                     key={col.value}
                     onClick={() => {
                       updateNote(activeNote.id, { color: col.value });
-                      setShowColorMenu(false);
+                      closeColorMenu();
                     }}
                     style={{ backgroundColor: col.value }}
                     className="w-6 h-6 rounded-full border border-slate-300 dark:border-slate-600 hover:scale-110 transition flex items-center justify-center"
@@ -341,7 +346,7 @@ export const NoteEditor: React.FC = () => {
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
-              setShowBlockMenu(!showBlockMenu);
+              toggleBlockMenu();
             }}
             className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-medium flex items-center gap-1.5 transition"
             title="Estilo de párrafo o encabezado"
@@ -360,7 +365,7 @@ export const NoteEditor: React.FC = () => {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   executeFormat('formatBlock', '<p>');
-                  setShowBlockMenu(false);
+                  closeBlockMenu();
                 }}
                 className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
                   activeFormats.currentBlock === 'p' ? 'text-blue-600 font-semibold' : ''
@@ -374,7 +379,7 @@ export const NoteEditor: React.FC = () => {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   executeFormat('formatBlock', '<h1>');
-                  setShowBlockMenu(false);
+                  closeBlockMenu();
                 }}
                 className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
                   activeFormats.currentBlock === 'h1' ? 'text-blue-600 font-semibold' : ''
@@ -388,7 +393,7 @@ export const NoteEditor: React.FC = () => {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   executeFormat('formatBlock', '<h2>');
-                  setShowBlockMenu(false);
+                  closeBlockMenu();
                 }}
                 className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
                   activeFormats.currentBlock === 'h2' ? 'text-blue-600 font-semibold' : ''
@@ -402,7 +407,7 @@ export const NoteEditor: React.FC = () => {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   executeFormat('formatBlock', '<h3>');
-                  setShowBlockMenu(false);
+                  closeBlockMenu();
                 }}
                 className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
                   activeFormats.currentBlock === 'h3' ? 'text-blue-600 font-semibold' : ''
@@ -416,7 +421,7 @@ export const NoteEditor: React.FC = () => {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   executeFormat('formatBlock', '<blockquote>');
-                  setShowBlockMenu(false);
+                  closeBlockMenu();
                 }}
                 className={`w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
                   activeFormats.currentBlock === 'blockquote' ? 'text-blue-600 font-semibold' : ''
@@ -696,6 +701,87 @@ export const NoteEditor: React.FC = () => {
             [&_strike]:line-through
           "
         />
+      </div>
+
+      <div className="absolute bottom-14 right-4 z-50 flex flex-col items-end gap-2">
+        {showEditorState && (
+          <section
+            id="editor-state-panel"
+            aria-label="Estado interno del editor"
+            className="w-[min(22rem,calc(100vw-2rem))] max-h-[min(70vh,32rem)] overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+          >
+            <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
+              Estado del editor
+            </h2>
+            <dl className="space-y-3 text-xs">
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">showEditorState</dt>
+                <dd className="rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {JSON.stringify(editorState.showEditorState)}
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">title</dt>
+                <dd className="break-words rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {JSON.stringify(title)}
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">copied</dt>
+                <dd className="rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {JSON.stringify(copied)}
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">showFolderMenu</dt>
+                <dd className="rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {JSON.stringify(showFolderMenu)}
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">showColorMenu</dt>
+                <dd className="rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {JSON.stringify(showColorMenu)}
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">showBlockMenu</dt>
+                <dd className="rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {JSON.stringify(showBlockMenu)}
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">activeFormats</dt>
+                <dd>
+                  <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    {JSON.stringify(activeFormats, null, 2)}
+                  </pre>
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-slate-500 dark:text-slate-400">stats</dt>
+                <dd>
+                  <pre className="rounded-md bg-slate-50 p-2 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    {JSON.stringify(stats, null, 2)}
+                  </pre>
+                </dd>
+              </div>
+            </dl>
+          </section>
+        )}
+        <button
+          type="button"
+          aria-expanded={showEditorState}
+          aria-controls="editor-state-panel"
+          aria-label={showEditorState ? 'Ocultar estado del editor' : 'Mostrar estado del editor'}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleEditorState();
+          }}
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        >
+          {showEditorState ? <X className="h-5 w-5" /> : <Info className="h-5 w-5" />}
+        </button>
       </div>
 
       {/* Bottom Metadata & Statistics Bar */}
