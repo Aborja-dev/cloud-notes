@@ -1,5 +1,18 @@
 import type { Editor } from "@tiptap/core";
-import type { ActiveFormats, EditorStats } from "./editorState";
+import type { ActiveFormats, EditorStats } from "./editorTypes";
+import Placeholder from "@tiptap/extension-placeholder";
+import TextAlign from "@tiptap/extension-text-align";
+import Underline from "@tiptap/extension-underline";
+import StarterKit from "@tiptap/starter-kit";
+
+export const EDITOR_EXTENSIONS = [
+    StarterKit,
+    Underline,
+    TextAlign.configure({ types: ["heading", "paragraph"] }),
+    Placeholder.configure({
+        placeholder: "Escribe tu nota aquí... Puedes aplicar negrita, cursiva, subrayado, listas con viñetas o numeradas y ajustar la alineación del texto.",
+    }),
+];
 
 export function extractText(editor: Editor): string {
     return editor.state.doc.textBetween(0, editor.state.doc.content.size, " ");

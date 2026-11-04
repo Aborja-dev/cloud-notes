@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ActiveFormats } from "../features/editor/editorState";
+import type { ActiveFormats } from "../features/editor/editorTypes";
 import {
   AlignCenter,
   AlignJustify,

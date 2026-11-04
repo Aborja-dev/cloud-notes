@@ -15,6 +15,10 @@ export type UIAction =
     | { type: "SET_SELECTED_NOTE_ID"; payload: { noteId: string | null } }
     | { type: "SET_SEARCH_QUERY"; payload: { query: string } }
     | { type: "SET_MOBILE_VIEW"; payload: { view: "list" | "editor" } }
+    | { type: "SET_MOBILE_SIDEBAR_OPEN"; payload: { isOpen: boolean } }
+    | { type: "TOGGLE_SIDEBAR_COLLAPSED" }
+    | { type: "TOGGLE_NOTE_LIST_COLLAPSED" }
+    | { type: "SET_NOTE_LIST_COLLAPSED"; payload: { isCollapsed: boolean } }
     | { type: "SET_ONLINE"; payload: { isOnline: boolean } }
     | { type: "LOADING" }
     | { type: "FINISH_LOADING" }
@@ -78,6 +82,14 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
             return { ...state, searchQuery: action.payload.query };
         case "SET_MOBILE_VIEW":
             return { ...state, mobileView: action.payload.view };
+        case "SET_MOBILE_SIDEBAR_OPEN":
+            return { ...state, isMobileSidebarOpen: action.payload.isOpen };
+        case "TOGGLE_SIDEBAR_COLLAPSED":
+            return { ...state, isSidebarCollapsed: !state.isSidebarCollapsed };
+        case "TOGGLE_NOTE_LIST_COLLAPSED":
+            return { ...state, isNoteListCollapsed: !state.isNoteListCollapsed };
+        case "SET_NOTE_LIST_COLLAPSED":
+            return { ...state, isNoteListCollapsed: action.payload.isCollapsed };
         case "SET_ONLINE":
             return {
                 ...state,

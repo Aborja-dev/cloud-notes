@@ -13,6 +13,10 @@ type NotesContextType = {
   setActiveFilter: (filter: UIState['activeFilter']) => void;
   setSelectedNoteId: (id: string | null) => void;
   setSearchQuery: (query: string) => void;
+  setMobileSidebarOpen: (isOpen: boolean) => void;
+  toggleSidebarCollapsed: () => void;
+  toggleNoteListCollapsed: () => void;
+  setNoteListCollapsed: (isCollapsed: boolean) => void;
 } & ReturnType<typeof useAuth>
   & ReturnType<typeof useNotesData>
   & ReturnType<typeof useFolder>;
@@ -67,6 +71,16 @@ export const NotesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setActiveFilter: (filter) => dispatch({ type: 'SET_ACTIVE_FILTER', payload: { filter } }),
         setSelectedNoteId: (id) => dispatch({ type: 'SET_SELECTED_NOTE_ID', payload: { noteId: id } }),
         setSearchQuery: (query) => dispatch({ type: 'SET_SEARCH_QUERY', payload: { query } }),
+        setMobileSidebarOpen: (isOpen) => dispatch({
+          type: 'SET_MOBILE_SIDEBAR_OPEN',
+          payload: { isOpen },
+        }),
+        toggleSidebarCollapsed: () => dispatch({ type: 'TOGGLE_SIDEBAR_COLLAPSED' }),
+        toggleNoteListCollapsed: () => dispatch({ type: 'TOGGLE_NOTE_LIST_COLLAPSED' }),
+        setNoteListCollapsed: (isCollapsed) => dispatch({
+          type: 'SET_NOTE_LIST_COLLAPSED',
+          payload: { isCollapsed },
+        }),
       }}
     >
       {children}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { NotesProvider, useNotes } from './context/NotesContext';
 import { AuthProvider } from '../auth/auth';
 import { Sidebar } from './components/Sidebar';
@@ -6,12 +6,15 @@ import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
 import { AuthScreen } from './components/AuthScreen';
 import { Cloud, Loader2, PanelRightOpen } from 'lucide-react';
-import { EditorProvider } from './modules/editor.context';
 const Workspace: React.FC = () => {
-  const { state, createNote } = useNotes();
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isNoteListCollapsed, setIsNoteListCollapsed] = useState(false);
+  const {
+    state,
+    createNote,
+    setMobileSidebarOpen,
+    toggleSidebarCollapsed,
+    toggleNoteListCollapsed,
+    setNoteListCollapsed,
+  } = useNotes();
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,31 +51,31 @@ const Workspace: React.FC = () => {
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans antialiased">
       {/* Sidebar with Folders and Navigation */}
       <Sidebar
-        isMobileOpen={isMobileSidebarOpen}
-        setIsMobileOpen={setIsMobileSidebarOpen}
-        isDesktopCollapsed={isSidebarCollapsed}
-        onToggleDesktop={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+        isMobileOpen={state.isMobileSidebarOpen}
+        setIsMobileOpen={setMobileSidebarOpen}
+        isDesktopCollapsed={state.isSidebarCollapsed}
+        onToggleDesktop={toggleSidebarCollapsed}
       />
       {/* Note List column: on mobile, show if mobileView === 'list', hide if mobileView === 'editor' */}
       <div className={`h-full ${
         state.mobileView === 'editor'
-          ? (isNoteListCollapsed ? 'hidden' : 'hidden md:flex md:w-80 lg:w-96')
-          : `flex w-full ${isNoteListCollapsed ? 'md:hidden' : 'md:w-80 lg:w-96'}`
+          ? (state.isNoteListCollapsed ? 'hidden' : 'hidden md:flex md:w-80 lg:w-96')
+          : `flex w-full ${state.isNoteListCollapsed ? 'md:hidden' : 'md:w-80 lg:w-96'}`
       } shrink-0`}>
         <NoteList
-          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
-          onCollapse={() => setIsNoteListCollapsed(true)}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          isSidebarCollapsed={state.isSidebarCollapsed}
+          onToggleSidebar={toggleSidebarCollapsed}
+          onCollapse={() => setNoteListCollapsed(true)}
         />
       </div>
-      {isNoteListCollapsed && (
+      {state.isNoteListCollapsed && (
         <div className={`hidden h-full w-12 shrink-0 flex-col items-center border-r border-slate-200 bg-slate-50 pt-3 dark:border-slate-800 dark:bg-slate-900/40 md:flex ${
           state.mobileView === 'editor' ? 'md:hidden' : ''
         }`}>
           <button
             type="button"
-            onClick={() => setIsNoteListCollapsed(false)}
+            onClick={() => setNoteListCollapsed(false)}
             className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             title="Expandir lista de notas"
             aria-label="Expandir lista de notas"
@@ -85,8 +88,8 @@ const Workspace: React.FC = () => {
       {/* Note Editor Surface: on mobile, show if mobileView === 'editor', hide if mobileView === 'list' */}
       <main className={`flex-1 flex flex-col h-full overflow-hidden ${state.mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
         <NoteEditor
-          isNoteListCollapsed={isNoteListCollapsed}
-          onToggleNoteList={() => setIsNoteListCollapsed((collapsed) => !collapsed)}
+          isNoteListCollapsed={state.isNoteListCollapsed}
+          onToggleNoteList={toggleNoteListCollapsed}
         />
       </main>
     </div>
@@ -97,9 +100,7 @@ export default function App() {
   return (
     <AuthProvider>
       <NotesProvider>
-        <EditorProvider>
-          <Workspace />
-        </EditorProvider>
+        <Workspace />
       </NotesProvider>
     </AuthProvider>
   );

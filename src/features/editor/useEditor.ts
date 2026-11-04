@@ -1,17 +1,42 @@
 import { useCallback, useEffect, useReducer, useRef, useState, type ChangeEvent } from "react";
+import { useEditor as useTiptapEditor } from "@tiptap/react";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import type { Note } from "../../types";
-import { useEditorContext } from "../../modules/editor.context";
 import { editorReducer, INITIAL_EDITOR_STATE } from "./editorState";
+import type { ActiveFormats, EditorStats } from "./editorTypes";
 import {
     calculateEditorStats,
     copyNote,
+    EDITOR_EXTENSIONS,
     executeEditorCommand,
     exportNote,
     readActiveFormats,
-} from "./tiptap";
+} from "./editorService";
 
 type UpdateNote = (id: string, updates: Partial<Note>) => Promise<void>;
+type EditorHandler = (editor: TiptapEditor) => void;
+
+interface PendingSave {
+    noteId: string;
+    title: string;
+    content: string;
+}
+
+const INITIAL_ACTIVE_FORMATS: ActiveFormats = {
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    bulletList: false,
+    orderedList: false,
+    alignLeft: true,
+    alignCenter: false,
+    alignRight: false,
+    alignJustify: false,
+    currentBlock: "p",
+};
+
+const INITIAL_STATS: EditorStats = { words: 0, chars: 0, readTime: 1 };
 
 function escapeHtml(value: string): string {
     return value.replace(/[&<>"']/g, (character) => ({
@@ -38,61 +63,67 @@ export const useEditor = (
     activeNote: Note | undefined,
     updateNote: UpdateNote,
 ) => {
-    const [editorState, dispatch] = useReducer(editorReducer, INITIAL_EDITOR_STATE);
+    const [uiState, dispatch] = useReducer(editorReducer, INITIAL_EDITOR_STATE);
+    const [title, setTitle] = useState(activeNote?.title || "");
+    const [stats, setStats] = useState(INITIAL_STATS);
+    const [activeFormats, setActiveFormats] = useState(INITIAL_ACTIVE_FORMATS);
     const [canUndo, setCanUndo] = useState(false);
-    const { editor, setHandlers } = useEditorContext();
-    const {
-        title,
-        copied,
-        activeFormats,
-        stats,
-        showFolderMenu,
-        showColorMenu,
-        showBlockMenu,
-        showEditorState,
-    } = editorState;
-    const isUpdatingFromProp = useRef(false);
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingSaveRef = useRef<PendingSave | null>(null);
+    const isUpdatingFromProp = useRef(false);
+    const onUpdateRef = useRef<EditorHandler>(() => {});
+    const onSelectionUpdateRef = useRef<EditorHandler>(() => {});
+    const onTransactionRef = useRef<EditorHandler>(() => {});
 
-    const updateStats = useCallback((currentEditor: TiptapEditor) => {
-        dispatch({ type: "SET_STATS", payload: calculateEditorStats(currentEditor) });
-    }, []);
+    const editor = useTiptapEditor({
+        extensions: EDITOR_EXTENSIONS,
+        content: "",
+        onUpdate: ({ editor: currentEditor }) => onUpdateRef.current(currentEditor),
+        onSelectionUpdate: ({ editor: currentEditor }) =>
+            onSelectionUpdateRef.current(currentEditor),
+        onTransaction: ({ editor: currentEditor }) => onTransactionRef.current(currentEditor),
+    });
 
-    const updateActiveFormats = useCallback((currentEditor: TiptapEditor | null = editor) => {
-        if (!currentEditor) return;
-        dispatch({
-            type: "SET_ACTIVE_FORMATS",
-            payload: readActiveFormats(currentEditor),
+    const flushPendingSave = useCallback(() => {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+        }
+
+        const pendingSave = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        if (!pendingSave) return;
+
+        void updateNote(pendingSave.noteId, {
+            title: pendingSave.title || "Sin título",
+            content: pendingSave.content,
         });
-    }, [editor]);
+    }, [updateNote]);
 
-    const triggerSave = useCallback((newTitle: string, newContent: string) => {
-        if (!activeNote) return;
+    const triggerSave = useCallback((noteId: string, newTitle: string, newContent: string) => {
+        pendingSaveRef.current = {
+            noteId,
+            title: newTitle,
+            content: newContent,
+        };
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(() => {
-            void updateNote(activeNote.id, {
-                title: newTitle || "Sin título",
-                content: newContent,
-            });
-        }, 400);
-    }, [activeNote, updateNote]);
+        saveTimeoutRef.current = setTimeout(flushPendingSave, 2000);
+    }, [flushPendingSave]);
 
     const handleContentInput = useCallback((currentEditor: TiptapEditor) => {
-        if (isUpdatingFromProp.current) return;
-        const currentHtml = currentEditor.getHTML();
-        updateStats(currentEditor);
-        triggerSave(title, currentHtml);
-    }, [title, triggerSave, updateStats]);
+        if (isUpdatingFromProp.current || !activeNote) return;
+        setStats(calculateEditorStats(currentEditor));
+        triggerSave(activeNote.id, title, currentEditor.getHTML());
+    }, [activeNote, title, triggerSave]);
 
-    useEffect(() => {
-        setHandlers({
-            onUpdate: handleContentInput,
-            onSelectionUpdate: updateActiveFormats,
-            onTransaction: (currentEditor) => setCanUndo(currentEditor.can().undo()),
-        });
-        return () => setHandlers({});
-    }, [handleContentInput, setHandlers, updateActiveFormats]);
+    const updateActiveFormats = useCallback((currentEditor: TiptapEditor) => {
+        setActiveFormats(readActiveFormats(currentEditor));
+    }, []);
+
+    onUpdateRef.current = handleContentInput;
+    onSelectionUpdateRef.current = updateActiveFormats;
+    onTransactionRef.current = (currentEditor) => setCanUndo(currentEditor.can().undo());
 
     useEffect(() => {
         if (!editor) return;
@@ -100,41 +131,40 @@ export const useEditor = (
         isUpdatingFromProp.current = true;
         try {
             if (activeNote) {
-                dispatch({ type: "SET_TITLE", payload: activeNote.title || "" });
+                setTitle(activeNote.title || "");
                 editor.commands.setContent(getInitialContent(activeNote.content || ""), {
                     emitUpdate: false,
                 });
-                updateStats(editor);
+                setStats(calculateEditorStats(editor));
             } else {
-                dispatch({ type: "SET_TITLE", payload: "" });
+                setTitle("");
                 editor.commands.clearContent(false);
-                dispatch({
-                    type: "SET_STATS",
-                    payload: { words: 0, chars: 0, readTime: 1 },
-                });
+                setStats(INITIAL_STATS);
             }
         } finally {
             isUpdatingFromProp.current = false;
         }
-        updateActiveFormats(editor);
-    }, [activeNote?.id, editor, updateActiveFormats, updateStats]);
+        setActiveFormats(readActiveFormats(editor));
+    }, [activeNote?.id, editor]);
 
     useEffect(() => () => {
-        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        flushPendingSave();
         if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
-    }, []);
+    }, [flushPendingSave]);
 
     const handleTitleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         const newTitle = event.target.value;
-        dispatch({ type: "SET_TITLE", payload: newTitle });
-        triggerSave(newTitle, editor?.getHTML() ?? "");
-    }, [editor, triggerSave]);
+        setTitle(newTitle);
+        if (activeNote && editor) {
+            triggerSave(activeNote.id, newTitle, editor.getHTML());
+        }
+    }, [activeNote, editor, triggerSave]);
 
     const executeFormat = useCallback((command: string, value?: string | number) => {
         if (!editor) return;
         executeEditorCommand(editor, command, value);
-        updateActiveFormats(editor);
-    }, [editor, updateActiveFormats]);
+        setActiveFormats(readActiveFormats(editor));
+    }, [editor]);
 
     const undo = useCallback(() => {
         if (!editor?.can().undo()) return;
@@ -143,12 +173,13 @@ export const useEditor = (
 
     const handleCopy = useCallback(() => {
         if (!editor) return;
-        void copyNote(title, editor);
-        dispatch({ type: "SET_COPIED", payload: true });
-        if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
-        copiedTimeoutRef.current = setTimeout(() => {
-            dispatch({ type: "SET_COPIED", payload: false });
-        }, 2000);
+        void copyNote(title, editor).then(() => {
+            dispatch({ type: "SET_COPIED", payload: true });
+            if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+            copiedTimeoutRef.current = setTimeout(() => {
+                dispatch({ type: "SET_COPIED", payload: false });
+            }, 2000);
+        });
     }, [editor, title]);
 
     const handleExport = useCallback((type: "html" | "txt") => {
@@ -179,15 +210,15 @@ export const useEditor = (
     }, []);
 
     return {
-        editorState,
+        editorState: uiState,
         title,
-        copied,
+        copied: uiState.copied,
         activeFormats,
         stats,
-        showFolderMenu,
-        showColorMenu,
-        showBlockMenu,
-        showEditorState,
+        showFolderMenu: uiState.showFolderMenu,
+        showColorMenu: uiState.showColorMenu,
+        showBlockMenu: uiState.showBlockMenu,
+        showEditorState: uiState.showEditorState,
         editor,
         canUndo,
         undo,

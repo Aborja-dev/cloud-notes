@@ -10,6 +10,9 @@ export interface UIState {
     lastSyncTime: Date | null; // representa la fecha y hora de la última sincronización exitosa con el servidor
     isOnline: boolean; // representa si la aplicación está en línea o sin conexión
     mobileView: "list" | "editor";
+    isMobileSidebarOpen: boolean;
+    isSidebarCollapsed: boolean;
+    isNoteListCollapsed: boolean;
     syncState: SyncState;
     errorMessage: string | null; // representa el mensaje de error actual
 }
@@ -23,6 +26,9 @@ export const INITIAL_UI_STATE: UIState = {
     lastSyncTime: new Date(),
     isOnline: true,
     mobileView: "list",
+    isMobileSidebarOpen: false,
+    isSidebarCollapsed: false,
+    isNoteListCollapsed: false,
     syncState: "synced",
     errorMessage: null,
 };

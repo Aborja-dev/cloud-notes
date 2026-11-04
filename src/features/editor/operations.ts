@@ -5,4 +5,4 @@ export {
     exportNote,
     extractText,
     readActiveFormats,
-} from "./tiptap";
+} from "./editorService";
