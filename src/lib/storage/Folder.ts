@@ -9,8 +9,8 @@ import {
     updateDoc,
     where,
 } from "firebase/firestore";
-import { db } from "../firebase";
-import type { Folder, UserProfile } from "../types";
+import { db } from "../../firebase";
+import type { Folder, UserProfile } from "../../types";
 
 export interface FolderInput {
     name: string;

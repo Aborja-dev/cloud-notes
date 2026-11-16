@@ -9,8 +9,8 @@ import {
     updateDoc,
     where,
 } from "firebase/firestore";
-import { db } from "../firebase";
-import type { Note, UserProfile } from "../types";
+import { db } from "../../firebase";
+import type { Note, UserProfile } from "../../types";
 
 export type NoteInput = Pick<
     Note,

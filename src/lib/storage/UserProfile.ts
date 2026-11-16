@@ -3,8 +3,8 @@ import {
     signOut,
     type User,
 } from "firebase/auth";
-import { auth } from "../firebase";
-import type { UserProfile } from "../types";
+import { auth } from "../../firebase";
+import type { UserProfile } from "../../types";
 
 const toUserProfile = (user: User): UserProfile => ({
     uid: user.uid,
