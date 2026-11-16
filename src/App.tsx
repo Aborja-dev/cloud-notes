@@ -6,6 +6,8 @@ import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
 import { AuthScreen } from './components/AuthScreen';
 import { Cloud, Loader2, PanelRightOpen } from 'lucide-react';
+import { useApp } from './lib/useApp';
+import { AppProvider } from './context/AppContext';
 const Workspace: React.FC = () => {
   const {
     state,
@@ -97,11 +99,14 @@ const Workspace: React.FC = () => {
 };
 
 export default function App() {
+  
   return (
+    <AppProvider>
     <AuthProvider>
       <NotesProvider>
         <Workspace />
       </NotesProvider>
     </AuthProvider>
+    </AppProvider>
   );
 }
